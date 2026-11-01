@@ -16,18 +16,21 @@ import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 
 const ROOT = process.cwd();
-const npm = process.execPath;
-const npmCli = join(ROOT, 'node_modules', 'npm', 'bin', 'npm-cli.js');
+// Use the npm that ships with the Node running this script. Referencing
+// `node_modules/npm/bin/npm-cli.js` from the working tree fails, because the temp
+// clone has no node_modules yet — that is the whole point of `npm ci`.
+const npmCmd = process.platform === 'win32' ? 'npm.cmd' : 'npm';
 
 const stages = process.argv.slice(2);
 const runStages = stages.length > 0 ? stages : ['typecheck', 'build'];
 
 function run(cwd, label, args, timeout = 900_000) {
   console.log(`\n--- ${label} ---`);
-  const r = spawnSync(npm, [npmCli, ...args], {
+  const r = spawnSync(npmCmd, args, {
     cwd,
     stdio: 'inherit',
     timeout,
+    shell: process.platform === 'win32',
     env: { ...process.env, CI: 'true' },
   });
   return r.status === 0;
@@ -37,8 +40,9 @@ const clone = mkdtempSync(join(tmpdir(), 'ysm-ci-'));
 console.log(`clean clone: ${clone}`);
 
 try {
-  // Clone from the local git repo, which is exactly what CI sees.
-  let r = spawnSync('git', ['clone', '--quiet', '--depth', '1', `file:///${ROOT.replace(/\\/g, '/')}`, clone], {
+  // Clone from the local git repo, which is what CI sees. A plain path works in
+  // both git-bash and Windows; a file:// URL with a drive letter does not.
+  let r = spawnSync('git', ['clone', '--quiet', '--depth', '1', ROOT, clone], {
     stdio: 'inherit',
   });
   if (r.status !== 0) {
