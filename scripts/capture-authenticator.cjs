@@ -10,8 +10,6 @@ const { join } = require('node:path');
 const { mkdirSync, writeFileSync, mkdtempSync, rmSync } = require('node:fs');
 const { tmpdir } = require('node:os');
 
-const INDEX = join(__dirname, '..', 'renderer', 'index.html');
-const PRELOAD = join(__dirname, '..', 'electron', 'preload.cjs');
 const OUT = join(__dirname, '..', 'docs', 'screenshots');
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
@@ -38,12 +36,6 @@ app.whenReady().then(async () => {
     const img = await win.webContents.capturePage();
     writeFileSync(join(OUT, `${name}.png`), img.toPNG());
     console.log(`captured ${name}.png`);
-  }
-
-  async function invoke(channel, payload) {
-    return win.webContents.executeJavaScript(
-      `window.ysm.invoke(${JSON.stringify(channel)}, ${JSON.stringify(payload ?? {})})`,
-    );
   }
 
   // Step 1: create the account through the real IPC path, which is what adds the

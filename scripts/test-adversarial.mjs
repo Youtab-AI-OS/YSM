@@ -32,14 +32,27 @@ let pass = 0;
 let fail = 0;
 const failures = [];
 
+/**
+ * One-line, length-capped rendering of anything that might reach a log.
+ *
+ * Test detail strings can carry a code, a password or a decrypted value, and a
+ * failure log is the last place any of that should be reproducible in full. This
+ * keeps diagnostics useful without echoing secrets.
+ */
+function sanitise(value) {
+  const text = value instanceof Error ? `${value.name}: ${value.message}` : String(value);
+  return text.replace(/\s+/g, ' ').slice(0, 160);
+}
+
 function check(name, cond, detail = '') {
   if (cond) {
     pass++;
     console.log(`  PASS ${name}`);
   } else {
     fail++;
-    failures.push(`${name}${detail ? ` — ${detail}` : ''}`);
-    console.log(`  FAIL ${name} ${detail}`);
+    const shown = detail === '' ? '' : sanitise(detail);
+    failures.push(`${name}${shown ? ` — ${shown}` : ''}`);
+    console.log(`  FAIL ${name} ${shown}`);
   }
 }
 
@@ -605,9 +618,9 @@ try {
   }
   check('no repeated ciphertext blocks across 10KB of identical plaintext', repeats === 0, `${repeats} repeats`);
 } catch (error) {
-  console.error('\nUNEXPECTED ERROR:', error);
+  console.error('\nUNEXPECTED ERROR:', sanitise(error));
   fail++;
-  failures.push(`suite crashed: ${error.message}`);
+  failures.push(`suite crashed: ${sanitise(error)}`);
 } finally {
   for (const d of dirs) {
     try {
