@@ -1,18 +1,24 @@
 # CODEOWNERS
 #
-# Every path is owned by the repository owner. Combined with the branch
-# protection rule (require review from CODEOWNERS, no direct pushes, no one may
-# approve their own PR), this means no change reaches `main` without the owner
-# reviewing it.
+# Every path is owned by the repository owner. Combined with branch protection
+# (require review from CODEOWNERS, no direct pushes), no change reaches `main`
+# without the owner reviewing it.
+#
+# The purpose is to keep strangers out: a fork or a PR from an outside
+# contributor cannot be merged by anyone except the owner.
 
 * @eimanghazaei
 
-# Security-sensitive paths get an explicit entry so a misconfigured pattern
-# above can never silently drop them.
-/.github/          @eimanghazaei
-/installer/        @eimanghazaei
-/src/ysm/crypto/   @eimanghazaei
-/src/ysm/storage/  @eimanghazaei
-/electron/         @eimanghazaei
-/docs/OWASP.md     @eimanghazaei
-/docs/ARCHITECTURE.md @eimanghazaei
+# Security-sensitive paths are listed explicitly so a future edit to the `*`
+# rule can never silently drop their protection.
+/.github/                @eimanghazaei
+/installer/              @eimanghazaei
+/src/ysm/crypto/         @eimanghazaei
+/src/ysm/storage/        @eimanghazaei
+/src/ysm/app/            @eimanghazaei
+/electron/               @eimanghazaei
+/scripts/scan-secrets.mjs @eimanghazaei
+/LICENSE                 @eimanghazaei
+/SECURITY.md             @eimanghazaei
+/docs/OWASP.md           @eimanghazaei
+/docs/ARCHITECTURE.md    @eimanghazaei
