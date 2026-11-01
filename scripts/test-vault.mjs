@@ -6,7 +6,7 @@ import { totp } from '../build/ysm/crypto/auth.js';
 import { base32Decode } from '../build/ysm/crypto/auth.js';
 
 let pass = 0, fail = 0;
-const check = (n, c, x = '') => { if (c) { pass++; console.log(`  PASS ${n}`); } else { fail++; console.log(`  FAIL ${n} ${x}`); } };
+const check = (n, c, x = '') => { if (c) { pass++; console.log(`  PASS ${n}`); } else { fail++; console.log(`  FAIL ${n} ${String(x).replace(/\s+/g, ' ').slice(0, 160)}`); } };
 
 const dir = mkdtempSync(join(tmpdir(), 'ysm-vault-'));
 const dbPath = join(dir, 'account.db');

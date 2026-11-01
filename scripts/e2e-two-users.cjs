@@ -12,7 +12,7 @@
  */
 const { app, BrowserWindow } = require('electron');
 const { join } = require('node:path');
-const { mkdtempSync, rmSync, readFileSync, existsSync, statSync } = require('node:fs');
+const { mkdtempSync, rmSync, readFileSync, existsSync } = require('node:fs');
 const { tmpdir } = require('node:os');
 
 const sandboxA = mkdtempSync(join(tmpdir(), 'ysm-a-'));
@@ -26,20 +26,14 @@ function check(name, cond, extra = '') {
     console.log(`  PASS ${name}`);
   } else {
     fail++;
-    console.log(`  FAIL ${name} ${extra}`);
+    // Truncate and strip newlines: failure detail never needs to be long, and a
+    // value that reached this point should not be echoed in full to a log.
+    const detail = String(extra).replace(/\s+/g, ' ').slice(0, 160);
+    console.log(`  FAIL ${name} ${detail}`);
   }
 }
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
-
-/** Boot one app instance with its own userData, and return its window. */
-async function bootApp(userDataDir) {
-  // Each account needs its own main-process instance; the single-instance lock
-  // means we run them sequentially rather than in parallel.
-  app.setPath('userData', userDataDir);
-  const win = BrowserWindow.getAllWindows()[0];
-  return win;
-}
 
 async function invoke(win, channel, payload) {
   return win.webContents.executeJavaScript(

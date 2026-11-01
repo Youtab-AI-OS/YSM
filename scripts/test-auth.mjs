@@ -1,6 +1,6 @@
 import {
   deriveKeyEncryptionKey, deriveVerifier, wrapVaultKey, unwrapVaultKey,
-  checkPasswordStrength, generateTotpSecret, totp, verifyTotp, hotp,
+  checkPasswordStrength, generateTotpSecret, totp, verifyTotp,
   totpUri, base32Encode, base32Decode, generateRecoveryCodes, hashRecoveryCode,
   DEFAULT_ARGON,
 } from '../build/ysm/crypto/auth.js';

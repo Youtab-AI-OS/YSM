@@ -144,6 +144,13 @@ export class Vault {
     if (displayName.trim().length === 0 || displayName.length > 64) {
       return { ok: false, code: 'BAD_NAME', message: 'display name must be 1-64 characters' };
     }
+    // Control characters are refused outright. A NUL in particular round-trips
+    // inconsistently once the name reaches the UI, the IPC bridge or a terminal,
+    // and no legitimate display name needs one. Rejecting at the boundary keeps
+    // the stored value and every later reader in agreement.
+    if (/[\u0000-\u001f\u007f]/.test(displayName)) {
+      return { ok: false, code: 'BAD_NAME', message: 'display name must not contain control characters' };
+    }
 
     const db = openDesktopDatabase(dbPath);
     const existing = db.prepare('SELECT value FROM meta WHERE key = ?').get('account');

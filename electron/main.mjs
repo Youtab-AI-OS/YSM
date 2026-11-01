@@ -44,7 +44,6 @@ const PRELOAD = join(here, 'preload.cjs');
  * handler needs careful setup and a misconfigured handler fails the whole load.
  * `file://` plus these controls gives the same isolation with fewer moving parts.
  */
-const APP_ORIGIN = 'file://';
 
 // ---------------------------------------------------------------------------
 // Single instance: two processes writing one encrypted DB would corrupt state.
@@ -69,7 +68,8 @@ let mainWindow = null;
 let autoLockTimer = null;
 let autoLockMinutes = 5;
 
-// The renderer is served directly from disk; see the note on APP_ORIGIN.
+// The renderer is served directly from disk; every request outside this directory
+// is denied by the request filter below.
 const RENDERER_PREFIX = join(APP_ROOT, 'renderer').replace(/\\/g, '/').toLowerCase();
 
 /** Turn a file:// URL into a lowercased forward-slash path for prefix checks. */

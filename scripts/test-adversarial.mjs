@@ -69,10 +69,11 @@ function makeAccount(name) {
   const created = svc.createAccount(name, PW);
   if (!created.ok) throw new Error(`createAccount failed: ${JSON.stringify(created)}`);
   const secret = base32Decode(created.value.totpSecretBase32);
-  const nowSec = Math.floor(Date.now() / 1000);
-  const confirmed = svc.confirmOnboarding(totp(secret, nowSec));
+  // Read the clock at the moment of use, not before the work: a helper called late
+  // in a long suite would otherwise present a stale code as BAD_TOTP.
+  const confirmed = svc.confirmOnboarding(totp(secret, Math.floor(Date.now() / 1000)));
   if (!confirmed.ok) throw new Error(`confirm failed: ${JSON.stringify(confirmed)}`);
-  return { svc, secret, createdAt: nowSec, dataDir, name };
+  return { svc, secret, dataDir, name };
 }
 
 function identityOf(svc) {
@@ -515,7 +516,6 @@ try {
     '<script>alert(1)</script>',
     '${process.exit(1)}',
     '../../etc/passwd',
-    'a\u0000b',
   ];
 
   for (const payload of injectionPayloads) {
@@ -525,18 +525,34 @@ try {
     check(`hostile display name accepted as data (${payload.slice(0, 18)})`, created.ok);
     if (created.ok) {
       const s2 = base32Decode(created.value.totpSecretBase32);
-      svc.confirmOnboarding(totp(s2, nowSec));
+      // Compute the code against the *current* clock. Using a timestamp captured
+      // before the loop drifts out of the ±1 window once the loop takes more than
+      // a couple of minutes, which presents as a spurious BAD_TOTP.
+      const confirmed = svc.confirmOnboarding(totp(s2, Math.floor(Date.now() / 1000)));
+      check(
+        `onboarding completes with hostile name (${payload.slice(0, 18)})`,
+        confirmed.ok,
+        confirmed.ok ? '' : `${confirmed.code}: ${confirmed.message}`,
+      );
       // accountState() returns the state object directly, not wrapped in
       // {ok, value} like the other service methods.
       const state = svc.accountState();
       check(
         `hostile name round-trips verbatim (${payload.slice(0, 18)})`,
-        state && state.displayName === payload,
-        state ? JSON.stringify(String(state.displayName).slice(0, 40)) : 'no state',
+        state !== undefined && state.displayName === payload,
+        state ? JSON.stringify(String(state.displayName).slice(0, 40)) : 'accountState returned nothing',
       );
       // The database must still be usable after storing it.
       check(`database intact after storing (${payload.slice(0, 18)})`, svc.contacts().ok);
     }
+  }
+
+  // Control characters are refused at the boundary rather than stored: a NUL
+  // cannot round-trip reliably through every layer that later reads the name.
+  for (const bad of ['a\u0000b', 'a\u0000', '\u0000b', 'tab\there', 'nl\nhere', 'del\u007f']) {
+    const svc = new AppService({ dataDir: join(tmp('ctl'), 'data') });
+    const created = svc.createAccount(bad, PW);
+    check(`control character refused in name (${JSON.stringify(bad.slice(0, 8))})`, created.ok === false && created.code === 'BAD_NAME', created.ok ? 'ACCEPTED' : created.code);
   }
 
   check('filename account database still works after injection attempts', filenameSvc.svc.contacts().ok);

@@ -1,7 +1,6 @@
-import { generateIdentity, publicIdentityOf, safetyNumber, sign, verify } from '../build/ysm/crypto/identity.js';
-import { seal, open, parseEnvelope } from '../build/ysm/crypto/envelope.js';
+import { generateIdentity, publicIdentityOf, safetyNumber } from '../build/ysm/crypto/identity.js';
+import { seal, open } from '../build/ysm/crypto/envelope.js';
 import { sealFile, FileReceiver, sanitizeFilename, resolveCategory } from '../build/ysm/crypto/attachment.js';
-import { gcm } from '@noble/ciphers/aes.js';
 
 const utf8 = new TextEncoder();
 let pass = 0;

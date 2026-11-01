@@ -2,7 +2,7 @@ import { mkdtempSync, rmSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { Vault } from '../build/ysm/storage/vault.js';
-import { createContactCard, encodeCard, parseCard, addContact, listContacts, createRoom, listRooms, markVerified } from '../build/ysm/storage/contacts.js';
+import { createContactCard, encodeCard, parseCard, addContact, listContacts, createRoom, markVerified } from '../build/ysm/storage/contacts.js';
 import { sendText, sendFile, receive, listMessages, loadAttachment } from '../build/ysm/storage/messaging.js';
 import { totp, base32Decode } from '../build/ysm/crypto/auth.js';
 
