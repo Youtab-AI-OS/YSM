@@ -58,6 +58,9 @@ jobs:
       - name: Tool tests (QR decode, URL guard)
         run: npm run test:tools
 
+      - name: Adversarial security tests
+        run: npm run test:security
+
   # ---------------------------------------------------------------------------
   # Electron end-to-end tests. Separate job because these launch a real GUI and
   # are the most likely to flake; a failure here should be easy to tell apart

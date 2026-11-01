@@ -142,10 +142,14 @@ try {
   check('missing chunk detected', dRes && !dRes.ok, dRes ? JSON.stringify(dRes).slice(0, 160) : '');
 
   console.log('=== replayed message ===');
+  // The envelope itself remains cryptographically valid forever (no forward
+  // secrecy), so replay defence lives in the storage layer: the message id comes
+  // from the signed `mid`, and a second import of the same envelope is refused
+  // instead of creating a duplicate row.
   const replayRes = receive(bob.vault, sent.envelopes[0]);
-  check('replay is accepted by crypto but stored twice (documented)', replayRes.ok === true);
-  console.log('  NOTE: envelopes are valid forever by design (no forward secrecy);');
-  console.log('  replay defence belongs to transport/dedup, not the envelope.');
+  check('replayed message is refused as a duplicate', replayRes.ok === false && replayRes.code === 'DUPLICATE', replayRes.ok ? 'stored twice' : `${replayRes.code}`);
+  console.log('  NOTE: envelopes stay valid forever by design (no forward secrecy);');
+  console.log('  dedup is enforced on the signed message id, not on the ciphertext.');
 
   console.log('=== data at rest ===');
   const dbRaw = readFileSync(alice.path).toString('latin1');
