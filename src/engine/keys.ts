@@ -78,19 +78,22 @@ export function readKeyFile(path: string): Result<Uint8Array> {
  */
 export function writeKeyFile(path: string, key: Uint8Array, asHex = false): Result<string> {
   const abs = resolve(path);
-  if (existsSync(abs)) {
-    return fail('MALFORMED_PARAMETER', `refusing to overwrite existing key file: ${abs}`);
-  }
   if (!ALLOWED_KEY_BYTES.has(key.length)) {
     return fail('BAD_KEY_LENGTH', `key must be 16, 24 or 32 bytes (got ${key.length})`);
   }
   try {
+    // `wx` is the exclusive-create flag: it fails if the file already exists, and
+    // the check is atomic in the filesystem. An `existsSync` pre-check is not
+    // needed and would introduce the very TOCTOU window it appears to close.
     writeFileSync(abs, asHex ? `${toHex(key)}\n` : Buffer.from(key), {
       mode: 0o600,
       flag: 'wx',
     });
     if (isPosix()) chmodSync(abs, 0o600);
   } catch (e) {
+    if ((e as NodeJS.ErrnoException).code === 'EEXIST') {
+      return fail('MALFORMED_PARAMETER', `refusing to overwrite existing key file: ${abs}`);
+    }
     return fail('MALFORMED_PARAMETER', `could not write key file ${abs}`, e);
   }
   return ok(abs);

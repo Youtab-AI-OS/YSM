@@ -32,7 +32,9 @@ import {
 import { generateIdentity, safetyNumber, type Identity, type PublicIdentity } from '../crypto/identity.js';
 import { random } from '../crypto/identity.js';
 import { x25519, ed25519 } from '@noble/curves/ed25519.js';
-import { openDatabase, createVaultCipher, withTransaction, type DatabaseSync, type VaultCipher } from './db.js';
+import { withTransaction, type SqlDatabase } from './sql.js';
+import { createVaultCipher, type VaultCipher } from './cipher.js';
+import { openDesktopDatabase } from './sql-desktop.js';
 
 export interface AccountMeta {
   readonly accountId: string;
@@ -67,7 +69,7 @@ const LOCKOUT_MAX_MS = 15 * 60_000;
  * must not retain the key themselves.
  */
 export class Vault {
-  private readonly db: DatabaseSync;
+  private readonly db: SqlDatabase;
   private vaultKey: Uint8Array | null;
   private readonly identityKeys: Identity;
   private readonly cipherInstance: VaultCipher;
@@ -76,7 +78,7 @@ export class Vault {
   readonly displayName: string;
 
   private constructor(
-    db: DatabaseSync,
+    db: SqlDatabase,
     vaultKey: Uint8Array,
     identity: Identity,
     accountId: string,
@@ -108,7 +110,7 @@ export class Vault {
     return this.cipherInstance;
   }
 
-  get database(): DatabaseSync {
+  get database(): SqlDatabase {
     if (this.vaultKey === null) throw new Error('vault is locked');
     return this.db;
   }
@@ -142,8 +144,15 @@ export class Vault {
     if (displayName.trim().length === 0 || displayName.length > 64) {
       return { ok: false, code: 'BAD_NAME', message: 'display name must be 1-64 characters' };
     }
+    // Control characters are refused outright. A NUL in particular round-trips
+    // inconsistently once the name reaches the UI, the IPC bridge or a terminal,
+    // and no legitimate display name needs one. Rejecting at the boundary keeps
+    // the stored value and every later reader in agreement.
+    if (/[\u0000-\u001f\u007f]/.test(displayName)) {
+      return { ok: false, code: 'BAD_NAME', message: 'display name must not contain control characters' };
+    }
 
-    const db = openDatabase({ path: dbPath });
+    const db = openDesktopDatabase(dbPath);
     const existing = db.prepare('SELECT value FROM meta WHERE key = ?').get('account');
     if (existing !== undefined) {
       db.close();
@@ -209,9 +218,9 @@ export class Vault {
    * to a Vault after TOTP succeeds — a failure returns without exposing it.
    */
   static unlock(dbPath: string, password: string, totpCode: string, now: () => number = Date.now): UnlockResult {
-    let db: DatabaseSync;
+    let db: SqlDatabase;
     try {
-      db = openDatabase({ path: dbPath });
+      db = openDesktopDatabase(dbPath);
     } catch {
       return { ok: false, code: 'NO_ACCOUNT', message: 'could not open the account database' };
     }
@@ -360,9 +369,9 @@ export class Vault {
     hashRecovery: (code: string) => string,
     now: () => number = Date.now,
   ): UnlockResult {
-    let db: DatabaseSync;
+    let db: SqlDatabase;
     try {
-      db = openDatabase({ path: dbPath });
+      db = openDesktopDatabase(dbPath);
     } catch {
       return { ok: false, code: 'NO_ACCOUNT', message: 'could not open the account database' };
     }
@@ -462,7 +471,7 @@ export class Vault {
   }
 }
 
-function readMeta(db: DatabaseSync): Record<string, string> | null {
+function readMeta(db: SqlDatabase): Record<string, string> | null {
   const rows = db.prepare('SELECT key, value FROM meta').all() as Array<{ key: string; value: string }>;
   if (rows.length === 0) return null;
   const out: Record<string, string> = {};
@@ -472,7 +481,7 @@ function readMeta(db: DatabaseSync): Record<string, string> | null {
 }
 
 /** Increment the failure counter with exponential backoff. */
-function recordFailure(db: DatabaseSync, nowMs: number): void {
+function recordFailure(db: SqlDatabase, nowMs: number): void {
   const row = db.prepare('SELECT failed_count FROM auth_state WHERE id = 1').get() as { failed_count: number } | undefined;
   const count = (row?.failed_count ?? 0) + 1;
   const lockout = count >= MAX_FAILED_ATTEMPTS

@@ -15,7 +15,7 @@
 import { open, seal, b64u, type ContentKind } from '../crypto/envelope.js';
 import { FileReceiver, sealFile, type FileMeta } from '../crypto/attachment.js';
 import { getContact, newId, type StoredContact } from './contacts.js';
-import { withTransaction } from './db.js';
+import { withTransaction } from './sql.js';
 import type { Vault } from './vault.js';
 
 /**
@@ -209,8 +209,20 @@ export function receive(vault: Vault, envelopeText: string, now: () => number = 
   const db = vault.database;
 
   if (header.kind === 'text') {
+    // Replay defence: the message id comes from the signed `mid` in the header,
+    // not from a fresh random value. Importing the same envelope twice must be a
+    // no-op, not a second message. `mid` is covered by the signature, so it cannot
+    // be changed to evade the check.
+    const existing = db.prepare('SELECT id FROM messages WHERE id = ?').get(header.mid);
+    if (existing !== undefined) {
+      return {
+        ok: false,
+        code: 'DUPLICATE',
+        message: 'this message has already been received',
+      };
+    }
     const text = new TextDecoder().decode(opened.body);
-    const id = newId();
+    const id = header.mid;
     db.prepare(
       `INSERT INTO messages (id, room_id, sender_id, direction, sent_at, body, kind)
        VALUES (?, ?, ?, 'in', ?, ?, 'text')`,
@@ -232,6 +244,19 @@ export function receive(vault: Vault, envelopeText: string, now: () => number = 
       return { ok: false, code: 'INVALID_FORMAT', message: 'file metadata is not valid JSON' };
     }
     const messageId = newId();
+
+    // Replay defence for files: a repeated file-start must not create a second
+    // receiver. Without this check, replaying [start, ...rest] silently replaced
+    // the in-progress receiver and re-assembled from scratch, so a duplicated or
+    // reordered transfer was accepted.
+    if (pendingTransfers.has(header.file)) {
+      return {
+        ok: false,
+        code: 'DUPLICATE',
+        message: 'this transfer has already been started',
+      };
+    }
+
     let receiver: FileReceiver;
     try {
       receiver = new FileReceiver(meta, header.chunks);
