@@ -1,0 +1,92 @@
+YSM — Youtab Security Message
+Copyright (c) 2025 Youtab B.V. All rights reserved.
+
+================================================================================
+PROPRIETARY AND CONFIDENTIAL
+================================================================================
+
+This software, including its source code, documentation, cryptographic design,
+build scripts and any accompanying files (the "Software"), is proprietary to
+Youtab B.V. and is protected by copyright law and international treaties.
+
+USE IS RESTRICTED TO ENTERPRISE LICENSEES ONLY.
+
+Use of the Software is permitted solely by an enterprise or organisation that
+holds a valid commercial licence granted by Youtab B.V. A licence may be obtained
+only by contacting Youtab B.V. by e-mail at:
+
+    Support@YoytabGroup.com
+
+No licence, express or implied, is granted to any individual, hobbyist,
+educational institution, non-profit body, or any entity that has not been issued
+a licence in writing by Youtab B.V. Unlicensed use, including evaluation,
+testing, demonstration, personal, academic or research use, is not permitted.
+
+WITHOUT A LICENCE YOU MAY NOT:
+
+  a) copy, install, run or use the Software;
+  b) modify, adapt, translate or create derivative works based on it;
+  c) distribute, sublicense, rent, lease, lend, sell or otherwise transfer it;
+  d) reverse engineer, decompile or disassemble it, except to the extent that
+     such restriction is expressly prohibited by applicable law;
+  e) remove, obscure or alter any proprietary notice;
+  f) use the Software to provide a service to third parties.
+
+Viewing this repository does not grant any of the rights above.
+
+================================================================================
+NO WARRANTY
+================================================================================
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS
+FOR A PARTICULAR PURPOSE, TITLE AND NON-INFRINGEMENT. YOUTAB B.V. DOES NOT
+WARRANT THAT THE SOFTWARE IS ERROR-FREE OR THAT ITS OPERATION WILL BE
+UNINTERRUPTED OR SECURE.
+
+================================================================================
+LIMITATION OF LIABILITY
+================================================================================
+
+TO THE MAXIMUM EXTENT PERMITTED BY APPLICABLE LAW, IN NO EVENT SHALL YOUTAB B.V.,
+ITS DIRECTORS, EMPLOYEES OR AGENTS BE LIABLE FOR ANY DIRECT, INDIRECT,
+INCIDENTAL, SPECIAL, EXEMPLARY OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
+LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA OR
+PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY,
+WHETHER IN CONTRACT, STRICT LIABILITY OR TORT (INCLUDING NEGLIGENCE), ARISING IN
+ANY WAY OUT OF THE USE OF OR INABILITY TO USE THE SOFTWARE, EVEN IF ADVISED OF
+THE POSSIBILITY OF SUCH DAMAGE.
+
+================================================================================
+IMPORTANT — DATA LOSS
+================================================================================
+
+The Software stores messages, files and encryption keys encrypted on the local
+device only. There is no server, no cloud backup and no recovery service. If a
+user loses their password AND their authenticator secret AND all of their recovery
+codes, the encrypted data is permanently unrecoverable. This is a deliberate
+consequence of the security design and is not a defect.
+
+================================================================================
+THIRD-PARTY COMPONENTS
+================================================================================
+
+The Software includes the following third-party components, each governed by its
+own licence. These notices must be retained in any permitted distribution.
+
+  - Electron (MIT) — https://github.com/electron/electron
+  - @noble/ciphers, @noble/curves, @noble/hashes (MIT) —
+    https://github.com/paulmillr/noble-hashes
+  - node-qrcode (MIT) — https://github.com/soldair/node-qrcode
+  - Node.js (MIT) — https://nodejs.org
+
+Full licence texts for the bundled runtime are included in the application
+directory as LICENSES.chromium.html and LICENSE.electron.txt.
+
+================================================================================
+CONTACT
+================================================================================
+
+  Licensing and commercial enquiries:  Support@YoytabGroup.com
+  Security reports:                    see SECURITY.md
+  Youtab B.V.
