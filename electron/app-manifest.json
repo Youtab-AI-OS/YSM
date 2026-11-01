@@ -1,0 +1,17 @@
+{
+  "name": "ysm",
+  "productName": "YSM",
+  "version": "1.0.0",
+  "description": "YSM — Youtab Security Message: end-to-end encrypted messaging, local-first, no telemetry",
+  "main": "electron/main.mjs",
+  "author": "Youtab",
+  "license": "UNLICENSED",
+  "private": true,
+  "buildKeys": "see package.json scripts",
+  "files": [
+    "electron/**/*",
+    "renderer/**/*",
+    "build/ysm/**/*",
+    "assets/**/*"
+  ]
+}

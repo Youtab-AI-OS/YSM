@@ -1,0 +1,247 @@
+<!doctype html>
+<html lang="en" dir="ltr">
+  <head>
+    <meta charset="utf-8" />
+    <!--
+      CSP is also sent by the main process as a header. This meta tag keeps the
+      policy in force even if the page is opened outside Electron (e.g. for a
+      mobile-browser preview), and documents the intent in the source.
+    -->
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data: blob:; media-src 'self' data: blob:; font-src 'self'; connect-src 'none'; form-action 'none'; base-uri 'none'; object-src 'none'"
+    />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="color-scheme" content="dark light" />
+    <title>YSM — Youtab Security Message</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <!-- Boot / splash: shown before the account state is known -->
+    <div id="screen-boot" class="screen active">
+      <div class="boot">
+        <img class="boot-logo" src="./icon.png" alt="YSM" />
+        <h1 id="boot-title" data-i18n="boot.title">YSM</h1>
+        <p id="boot-tagline" class="muted" data-i18n="app.tagline"></p>
+        <div class="boot-actions">
+          <button id="btn-go-create" class="btn btn-primary" data-i18n="boot.create"></button>
+          <button id="btn-go-unlock" class="btn btn-ghost" data-i18n="boot.unlock"></button>
+        </div>
+        <div class="boot-footer muted" id="boot-footer"></div>
+      </div>
+    </div>
+
+    <!-- Create account -->
+    <div id="screen-create" class="screen">
+      <form id="form-create" class="card" novalidate>
+        <h2 data-i18n="create.title"></h2>
+        <label for="create-name" data-i18n="create.displayName"></label>
+        <input id="create-name" type="text" maxlength="64" autocomplete="off" required />
+        <p class="hint" data-i18n="create.displayNameHint"></p>
+
+        <label for="create-password" data-i18n="create.password"></label>
+        <div class="pw-row">
+          <input id="create-password" type="password" maxlength="1024" autocomplete="new-password" required />
+          <button type="button" class="btn btn-icon" id="toggle-create-pw" aria-label="show password">👁</button>
+        </div>
+        <p class="hint" data-i18n="create.passwordHint"></p>
+
+        <label for="create-password2" data-i18n="create.passwordConfirm"></label>
+        <input id="create-password2" type="password" maxlength="1024" autocomplete="new-password" required />
+
+        <p id="create-error" class="error" role="alert" hidden></p>
+        <div class="row-actions">
+          <button type="button" class="btn btn-ghost" id="create-back" data-i18n="common.back"></button>
+          <button type="submit" class="btn btn-primary" id="create-submit" data-i18n="create.submit"></button>
+        </div>
+      </form>
+    </div>
+
+    <!-- Onboarding: TOTP -->
+    <div id="screen-onboard" class="screen">
+      <div class="card">
+        <h2 data-i18n="onboard.title"></h2>
+        <p data-i18n="onboard.intro"></p>
+        <div class="qr-box">
+          <div id="qr-canvas" class="qr" aria-hidden="true"></div>
+        </div>
+        <label data-i18n="onboard.secretLabel"></label>
+        <div class="secret-row">
+          <code id="totp-secret" class="mono"></code>
+          <button type="button" class="btn btn-icon" id="copy-secret" data-i18n="common.copy"></button>
+        </div>
+        <label for="onboard-code" data-i18n="onboard.verifyLabel"></label>
+        <input id="onboard-code" type="text" inputmode="numeric" pattern="[0-9 ]*" maxlength="7" autocomplete="one-time-code" />
+        <p id="onboard-error" class="error" role="alert" hidden></p>
+        <button type="button" class="btn btn-primary full" id="onboard-verify" data-i18n="onboard.verify"></button>
+      </div>
+    </div>
+
+    <!-- Onboarding: recovery codes -->
+    <div id="screen-recovery" class="screen">
+      <div class="card">
+        <h2 data-i18n="onboard.recoveryTitle"></h2>
+        <p data-i18n="onboard.recoveryIntro"></p>
+        <ul id="recovery-list" class="recovery-list mono"></ul>
+        <div class="row-actions">
+          <button type="button" class="btn btn-ghost" id="copy-recovery" data-i18n="onboard.copiedAll"></button>
+        </div>
+        <label class="check-row">
+          <input type="checkbox" id="recovery-ack" />
+          <span data-i18n="onboard.recoveryAck"></span>
+        </label>
+        <button type="button" class="btn btn-primary full" id="recovery-done" data-i18n="common.done" disabled></button>
+      </div>
+    </div>
+
+    <!-- Unlock -->
+    <div id="screen-unlock" class="screen">
+      <form id="form-unlock" class="card" novalidate>
+        <img class="unlock-logo" src="./icon.png" alt="" />
+        <h2 data-i18n="unlock.title"></h2>
+        <label for="unlock-password" data-i18n="unlock.password"></label>
+        <input id="unlock-password" type="password" maxlength="1024" autocomplete="current-password" required />
+        <label for="unlock-code" data-i18n="unlock.code"></label>
+        <input id="unlock-code" type="text" inputmode="numeric" pattern="[0-9 ]*" maxlength="7" autocomplete="one-time-code" />
+        <p id="unlock-error" class="error" role="alert" hidden></p>
+        <button type="submit" class="btn btn-primary full" id="unlock-submit" data-i18n="unlock.submit"></button>
+        <button type="button" class="btn btn-link" id="use-recovery" data-i18n="unlock.useRecovery"></button>
+        <div id="recovery-fallback" hidden>
+          <label for="unlock-recovery" data-i18n="unlock.recoveryLabel"></label>
+          <input id="unlock-recovery" type="text" class="mono" maxlength="64" autocomplete="off" />
+          <button type="button" class="btn btn-primary full" id="unlock-recovery-submit" data-i18n="unlock.submit"></button>
+        </div>
+      </form>
+    </div>
+
+    <!-- Main application -->
+    <div id="screen-main" class="screen app-shell">
+      <aside class="sidebar">
+        <header class="sidebar-head">
+          <img src="./icon.png" alt="" class="mini-logo" />
+          <span class="brand" id="brand">YSM</span>
+          <span class="spacer"></span>
+          <button class="icon-btn" id="btn-lock" title="Lock">🔒</button>
+        </header>
+        <nav class="tabs">
+          <button class="tab active" data-tab="chats" data-i18n="nav.chats"></button>
+          <button class="tab" data-tab="contacts" data-i18n="nav.contacts"></button>
+          <button class="tab" data-tab="settings" data-i18n="nav.settings"></button>
+        </nav>
+        <div id="me" class="me"></div>
+      </aside>
+
+      <main class="main">
+        <!-- Chats -->
+        <section id="panel-chats" class="panel active">
+          <div class="panel-head">
+            <h1 data-i18n="nav.chats"></h1>
+          </div>
+          <div id="room-list" class="room-list"></div>
+          <div id="room-empty" class="empty" hidden>
+            <p class="empty-title" data-i18n="chats.empty"></p>
+            <p class="muted" data-i18n="chats.emptyHint"></p>
+          </div>
+        </section>
+
+        <!-- Conversation -->
+        <section id="panel-conversation" class="panel">
+          <div class="panel-head">
+            <button class="icon-btn" id="conv-back">←</button>
+            <h1 id="conv-title"></h1>
+            <span id="conv-badge" class="badge"></span>
+          </div>
+          <div id="message-list" class="message-list"></div>
+          <div class="composer">
+            <button class="icon-btn" id="btn-attach" title="Attach">📎</button>
+            <textarea id="composer-input" rows="1" data-i18n-placeholder="chats.composerPlaceholder"></textarea>
+            <button class="btn btn-primary" id="btn-send" data-i18n="chats.send"></button>
+          </div>
+          <input type="file" id="file-input" hidden />
+        </section>
+
+        <!-- Contacts -->
+        <section id="panel-contacts" class="panel">
+          <div class="panel-head">
+            <h1 data-i18n="nav.contacts"></h1>
+            <span class="spacer"></span>
+            <button class="btn btn-primary" id="btn-add-contact" data-i18n="contacts.add"></button>
+          </div>
+          <div id="contact-list" class="contact-list"></div>
+          <div class="card my-card">
+            <h3 data-i18n="contacts.myCard"></h3>
+            <p class="hint" data-i18n="contacts.myCardHint"></p>
+            <textarea id="my-card" class="mono" rows="4" readonly></textarea>
+            <button class="btn btn-ghost" id="copy-my-card" data-i18n="common.copy"></button>
+          </div>
+        </section>
+
+        <!-- Settings -->
+        <section id="panel-settings" class="panel">
+          <div class="panel-head"><h1 data-i18n="settings.title"></h1></div>
+          <div class="card">
+            <h3 data-i18n="settings.language"></h3>
+            <div class="lang-row">
+              <button class="btn lang-btn" data-locale="en">English</button>
+              <button class="btn lang-btn" data-locale="fa">فارسی</button>
+              <button class="btn lang-btn" data-locale="nl">Nederlands</button>
+            </div>
+          </div>
+          <div class="card">
+            <h3 data-i18n="settings.security"></h3>
+            <label for="autolock-select" data-i18n="settings.autoLock"></label>
+            <select id="autolock-select">
+              <option value="0" data-i18n="settings.autoLockOff"></option>
+              <option value="1">1</option>
+              <option value="5" selected>5</option>
+              <option value="15">15</option>
+              <option value="30">30</option>
+            </select>
+            <p class="hint" data-i18n="settings.lockWarning"></p>
+            <button class="btn btn-danger" id="btn-lock-settings" data-i18n="settings.lockNow"></button>
+          </div>
+          <div class="card">
+            <h3 data-i18n="settings.privacy"></h3>
+            <p><strong data-i18n="settings.noTelemetry"></strong></p>
+            <p class="muted" data-i18n="settings.privacyText"></p>
+          </div>
+          <div class="card">
+            <h3 data-i18n="settings.about"></h3>
+            <p class="muted" id="version-line"></p>
+          </div>
+        </section>
+      </main>
+    </div>
+
+    <!-- Add contact modal -->
+    <div id="modal-contact" class="modal" hidden>
+      <div class="modal-card">
+        <h2 data-i18n="contacts.add"></h2>
+        <p class="hint" data-i18n="contacts.pasteHint"></p>
+        <textarea id="contact-card-input" class="mono" rows="5" data-i18n-placeholder="contacts.paste"></textarea>
+        <p id="contact-error" class="error" role="alert" hidden></p>
+        <div class="row-actions">
+          <button class="btn btn-ghost" id="contact-cancel" data-i18n="common.cancel"></button>
+          <button class="btn btn-primary" id="contact-submit" data-i18n="contacts.addSubmit"></button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Safety number modal -->
+    <div id="modal-safety" class="modal" hidden>
+      <div class="modal-card">
+        <h2 data-i18n="contacts.safetyTitle"></h2>
+        <p id="safety-intro"></p>
+        <div id="safety-number" class="safety-number mono"></div>
+        <div class="row-actions">
+          <button class="btn btn-ghost" id="safety-close" data-i18n="common.close"></button>
+          <button class="btn btn-primary" id="safety-verify" data-i18n="contacts.markVerified"></button>
+        </div>
+      </div>
+    </div>
+
+    <div id="toast" class="toast" hidden></div>
+
+    <script type="module" src="./app.js"></script>
+  </body>
+</html>

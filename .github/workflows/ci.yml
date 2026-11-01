@@ -1,0 +1,200 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+# Least privilege by default. Individual jobs escalate only what they need.
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  NODE_VERSION: '22'
+
+jobs:
+  # ---------------------------------------------------------------------------
+  # Type check, build, and the full test suite.
+  # ---------------------------------------------------------------------------
+  test:
+    name: Build and test (Windows)
+    runs-on: windows-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          # Do not persist credentials: no step in this job needs to push.
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Type check
+        run: npm run typecheck
+
+      - name: Build (i18n, icons, TypeScript)
+        run: npm run build
+
+      - name: Library tests
+        run: npm run test:lib
+
+      - name: Crypto, auth, vault and messaging tests
+        run: npm run test:unit
+
+      - name: Tool tests (QR decode, URL guard)
+        run: npm run test:tools
+
+  # ---------------------------------------------------------------------------
+  # Electron end-to-end tests. Separate job because these launch a real GUI and
+  # are the most likely to flake; a failure here should be easy to tell apart
+  # from a logic failure.
+  # ---------------------------------------------------------------------------
+  e2e:
+    name: Electron end-to-end
+    runs-on: windows-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build
+        run: npm run build
+
+      # Windows runners have no interactive desktop; Electron still needs a
+      # window station for the renderer to initialise.
+      - name: Run Electron smoke and end-to-end tests
+        run: npm run test:electron
+
+      - name: Run responsive layout tests
+        run: npm run test:ui
+
+      - name: Upload screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: screenshots
+          path: docs/screenshots/
+          if-no-files-found: ignore
+
+  # ---------------------------------------------------------------------------
+  # Security: dependency audit and a hard check that no secret-looking file was
+  # ever committed.
+  # ---------------------------------------------------------------------------
+  security:
+    name: Security checks
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Audit dependencies (high and above)
+        run: npm audit --audit-level=high
+
+      - name: Reject committed key material
+        shell: bash
+        run: |
+          # Fail if any private key, keystore or vault file is tracked.
+          # These belong in a secret store, never in git history.
+          matches=$(git ls-files | grep -Ei '\.(key|pem|pfx|p12|jks|keystore|ysm|cmsg)$|ysm-account\.db|^\.env' || true)
+          if [ -n "$matches" ]; then
+            echo "::error::Sensitive file(s) are tracked in git:"
+            echo "$matches"
+            exit 1
+          fi
+          echo "No key material tracked."
+
+      - name: Verify no telemetry endpoints in source
+        shell: bash
+        run: |
+          # The app must make no outbound network calls. Catch an analytics or
+          # crash-reporting dependency being introduced by accident.
+          if grep -rInE 'google-analytics|sentry|mixpanel|segment\.io|amplitude|bugsnag|datadog' \
+               --include='*.ts' --include='*.js' --include='*.mjs' --include='*.cjs' \
+               src electron renderer 2>/dev/null; then
+            echo "::error::Telemetry-like endpoint found in source."
+            exit 1
+          fi
+          echo "No telemetry references found."
+
+  # ---------------------------------------------------------------------------
+  # Build the Windows installer as an artifact, so every green main is shippable.
+  # ---------------------------------------------------------------------------
+  package:
+    name: Package Windows installer
+    runs-on: windows-latest
+    timeout-minutes: 40
+    needs: [test]
+    if: github.event_name != 'pull_request'
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build and package
+        run: npm run build && npx electron-builder --win --x64 --dir
+
+      - name: Install Inno Setup
+        run: |
+          choco install innosetup --yes --no-progress
+
+      - name: Compile installer
+        run: |
+          & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" installer\ysm.iss
+
+      - name: Upload installer
+        uses: actions/upload-artifact@v4
+        with:
+          name: YSM-Setup
+          path: release/installer/*.exe
+          if-no-files-found: error

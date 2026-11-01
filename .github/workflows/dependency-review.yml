@@ -1,0 +1,31 @@
+name: Dependency review
+
+# Blocks a pull request that introduces a dependency with a known vulnerability.
+# Runs only on PRs, which is where it is useful.
+
+on:
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  dependency-review:
+    name: Review new dependencies
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Dependency review
+        uses: actions/dependency-review-action@v4
+        with:
+          # Fail on any high or critical advisory in an added dependency.
+          fail-on-severity: high
+          # Deny licences incompatible with a proprietary application.
+          deny-licenses: AGPL-3.0, GPL-3.0, GPL-2.0, SSPL-1.0

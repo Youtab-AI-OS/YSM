@@ -1,0 +1,53 @@
+YSM — what this application does and does not protect
+=====================================================
+
+BEFORE YOU INSTALL
+------------------
+
+YSM is an end-to-end encrypted messenger. Read this short notice; it states the
+limits honestly so you are not surprised later.
+
+WHAT YSM PROTECTS
+-----------------
+- Your messages and files are encrypted on your device with AES-256-GCM and
+  signed with Ed25519. Nobody without your key can read or alter them.
+- Your database on disk is encrypted. Someone who copies the file cannot read
+  your messages, contacts or keys.
+- There is no server. Nothing you type is ever sent anywhere by the application.
+  No telemetry, no analytics, no crash reporting, no update checks.
+
+HOW MESSAGES TRAVEL
+-------------------
+YSM does not include a network service. To send a message you export a small
+encrypted file and deliver it yourself (email, USB drive, your own relay). The
+recipient imports it. Whoever carries the file sees only ciphertext, but they
+can see *that* a file was sent, its approximate size, and when.
+
+WHAT YSM DOES NOT PROTECT
+-------------------------
+- A compromised computer. If malware can read this app's memory while unlocked,
+  it can read your messages.
+- Someone forcing you to reveal your password.
+- Your choice of transport. If you send files by email, the email provider learns
+  who is talking to whom.
+- Past messages if your device key is later stolen. YSM v1 does not yet rotate
+  keys per message (no forward secrecy).
+
+YOUR RESPONSIBILITIES
+---------------------
+1. Compare the "safety number" with your contact in person or by voice call.
+   This is the only way to be sure nobody is intercepting your conversation.
+   The app shows it prominently but cannot verify it for you.
+2. Save your recovery codes offline. If you lose your password, your
+   authenticator app AND your recovery codes, your data is unrecoverable.
+3. Keep your password long. It is the only thing protecting your local vault.
+
+TWO-FACTOR AUTHENTICATION IS REQUIRED
+-------------------------------------
+YSM requires an authenticator code every time you unlock. Have an authenticator
+app (Google Authenticator, Authy, Aegis, or any TOTP app) ready before you create
+an account.
+
+LANGUAGES
+---------
+The application interface is available in English, Dutch and Farsi.

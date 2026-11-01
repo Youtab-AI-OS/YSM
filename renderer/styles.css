@@ -1,0 +1,678 @@
+/*
+ * YSM styles.
+ *
+ * Mobile-first: the layout is designed at 360 px and widens from there. Every
+ * control is at least 44x44 px (touch target minimum). There is no horizontal
+ * scrolling at any width, and the sidebar collapses to a bottom bar on narrow
+ * screens so the same document works as a desktop app and as a phone-sized
+ * web view.
+ *
+ * Logical properties (margin-inline, padding-inline, inset-inline) are used
+ * throughout so the Farsi (RTL) layout mirrors correctly with no extra rules.
+ */
+
+:root {
+  --bg: #0d1b2a;
+  --bg-elev: #14263a;
+  --bg-elev-2: #1b3049;
+  --border: #24405e;
+  --text: #e8eef6;
+  --text-dim: #93a7bd;
+  --accent: #2f81f7;
+  --accent-strong: #1f6feb;
+  --danger: #f2545b;
+  --ok: #2ea043;
+  --radius: 12px;
+  --radius-lg: 18px;
+  --shadow: 0 8px 30px rgb(0 0 0 / 45%);
+  --font: system-ui, -apple-system, 'Segoe UI', Roboto, 'Noto Sans', sans-serif;
+  --mono: ui-monospace, 'Cascadia Mono', 'Consolas', monospace;
+  --tap: 44px;
+}
+
+/* Farsi uses a font stack with better Persian glyph coverage. */
+html[lang='fa'] {
+  --font: 'Vazirmatn', 'Noto Naskh Arabic', 'Segoe UI', Tahoma, sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font);
+  font-size: 15px;
+  line-height: 1.5;
+  overflow: hidden;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Text selection is useful; but never let a drag select the chrome. */
+.sidebar,
+.panel-head,
+.composer,
+.topbar {
+  user-select: none;
+}
+
+h1,
+h2,
+h3 {
+  margin: 0 0 0.6em;
+  line-height: 1.25;
+  font-weight: 650;
+}
+h1 { font-size: 1.35rem; }
+h2 { font-size: 1.15rem; }
+h3 { font-size: 1rem; }
+
+.muted { color: var(--text-dim); }
+.mono { font-family: var(--mono); font-size: 0.86em; }
+.hint { color: var(--text-dim); font-size: 0.82rem; margin: 0.25rem 0 0.9rem; }
+.spacer { flex: 1; }
+
+/* ---------------------------------------------------------------- screens */
+
+.screen {
+  display: none;
+  height: 100%;
+  width: 100%;
+}
+.screen.active { display: flex; }
+
+/* Boot / auth cards are scrollable so a short viewport (phone keyboard open)
+   never clips the submit button out of reach. */
+#screen-boot,
+#screen-create,
+#screen-onboard,
+#screen-recovery,
+#screen-unlock {
+  align-items: center;
+  justify-content: center;
+  overflow-y: auto;
+  padding: max(1rem, env(safe-area-inset-top)) 1rem max(1rem, env(safe-area-inset-bottom));
+}
+
+.boot {
+  text-align: center;
+  max-width: 420px;
+  width: 100%;
+}
+
+.boot-logo {
+  width: 96px;
+  height: 96px;
+  border-radius: 22px;
+  box-shadow: var(--shadow);
+  margin-bottom: 1rem;
+}
+
+.unlock-logo {
+  width: 64px;
+  height: 64px;
+  border-radius: 16px;
+  display: block;
+  margin: 0 auto 0.75rem;
+}
+
+.boot-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  margin-top: 1.75rem;
+}
+
+.boot-footer {
+  margin-top: 2rem;
+  font-size: 0.78rem;
+}
+
+/* ------------------------------------------------------------------ cards */
+
+.card {
+  background: var(--bg-elev);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 1.25rem;
+  width: 100%;
+  max-width: 460px;
+  box-shadow: var(--shadow);
+}
+
+label {
+  display: block;
+  font-size: 0.85rem;
+  font-weight: 600;
+  margin-block: 0.85rem 0.35rem;
+  color: var(--text);
+}
+
+input[type='text'],
+input[type='password'],
+textarea,
+select {
+  width: 100%;
+  min-height: var(--tap);
+  padding: 0.65rem 0.8rem;
+  background: var(--bg);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  font-family: inherit;
+  font-size: 1rem;
+  /* 16px minimum prevents iOS Safari zoom-on-focus. */
+}
+
+input:focus-visible,
+textarea:focus-visible,
+select:focus-visible,
+button:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+textarea { resize: vertical; }
+
+.pw-row {
+  display: flex;
+  gap: 0.4rem;
+  align-items: stretch;
+}
+
+.secret-row {
+  display: flex;
+  gap: 0.4rem;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.secret-row code {
+  flex: 1 1 12rem;
+  min-width: 0;
+  padding: 0.6rem 0.8rem;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  word-break: break-all;
+}
+
+.check-row {
+  display: flex;
+  gap: 0.6rem;
+  align-items: flex-start;
+  margin-block: 1rem;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.check-row input {
+  width: 1.15rem;
+  height: 1.15rem;
+  margin-top: 0.15rem;
+  accent-color: var(--accent);
+}
+
+/* ---------------------------------------------------------------- buttons */
+
+.btn {
+  min-height: var(--tap);
+  padding: 0.6rem 1rem;
+  border-radius: var(--radius);
+  border: 1px solid transparent;
+  font-family: inherit;
+  font-size: 0.95rem;
+  font-weight: 600;
+  cursor: pointer;
+  background: var(--bg-elev-2);
+  color: var(--text);
+  transition: background 0.15s, opacity 0.15s;
+  /* No transition on transform: a moving button under the finger feels broken. */
+}
+
+.btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.btn-primary { background: var(--accent-strong); color: #fff; }
+.btn-primary:not(:disabled):hover { background: var(--accent); }
+.btn-ghost { background: transparent; border-color: var(--border); }
+.btn-ghost:not(:disabled):hover { background: var(--bg-elev-2); }
+.btn-danger { background: transparent; border-color: var(--danger); color: var(--danger); }
+.btn-link {
+  background: none;
+  border: none;
+  color: var(--accent);
+  text-decoration: underline;
+  padding: 0.4rem;
+  font-weight: 500;
+}
+.btn.full { width: 100%; margin-top: 1rem; }
+.btn-icon {
+  min-width: var(--tap);
+  min-height: var(--tap);
+  padding: 0;
+  display: inline-grid;
+  place-items: center;
+  background: var(--bg-elev-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  font-size: 1.1rem;
+  cursor: pointer;
+  color: var(--text);
+}
+
+.icon-btn {
+  min-width: var(--tap);
+  min-height: var(--tap);
+  display: inline-grid;
+  place-items: center;
+  background: transparent;
+  border: none;
+  color: var(--text);
+  font-size: 1.15rem;
+  cursor: pointer;
+  border-radius: var(--radius);
+}
+.icon-btn:hover { background: var(--bg-elev-2); }
+
+.row-actions {
+  display: flex;
+  gap: 0.6rem;
+  justify-content: flex-end;
+  margin-top: 1.2rem;
+  flex-wrap: wrap;
+}
+
+/* --------------------------------------------------------------- feedback */
+
+.error {
+  color: var(--danger);
+  font-size: 0.86rem;
+  margin-block: 0.75rem 0;
+  padding: 0.5rem 0.7rem;
+  background: rgb(242 84 91 / 12%);
+  border-inline-start: 3px solid var(--danger);
+  border-radius: 6px;
+}
+
+.toast {
+  position: fixed;
+  inset-inline: 1rem;
+  bottom: calc(1rem + env(safe-area-inset-bottom));
+  margin-inline: auto;
+  max-width: 380px;
+  background: var(--bg-elev-2);
+  border: 1px solid var(--border);
+  color: var(--text);
+  padding: 0.7rem 1rem;
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  z-index: 100;
+  text-align: center;
+  font-size: 0.9rem;
+}
+.toast[hidden] { display: none; }
+
+/* -------------------------------------------------------------------- QR */
+
+.qr-box {
+  display: flex;
+  justify-content: center;
+  padding: 0.75rem;
+  background: #fff;
+  border-radius: var(--radius);
+  margin-block: 0.5rem 1rem;
+}
+
+.qr {
+  width: 200px;
+  height: 200px;
+  image-rendering: pixelated;
+}
+
+/* ---------------------------------------------------------- app shell */
+
+.app-shell {
+  flex-direction: column;
+  height: 100%;
+}
+
+.sidebar {
+  display: flex;
+  flex-direction: column;
+  background: var(--bg-elev);
+  border-block-end: 1px solid var(--border);
+  flex: 0 0 auto;
+}
+
+.sidebar-head {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.6rem 0.8rem;
+}
+
+.mini-logo { width: 28px; height: 28px; border-radius: 8px; }
+.brand { font-weight: 700; letter-spacing: 0.06em; }
+
+.tabs {
+  display: flex;
+  gap: 0.25rem;
+  padding-inline: 0.5rem;
+}
+
+.tab {
+  flex: 1;
+  min-height: var(--tap);
+  background: transparent;
+  border: none;
+  border-block-end: 2px solid transparent;
+  color: var(--text-dim);
+  font-family: inherit;
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 0.5rem 0.4rem;
+}
+.tab.active {
+  color: var(--text);
+  border-block-end-color: var(--accent);
+}
+
+.me {
+  padding: 0.6rem 0.9rem;
+  font-size: 0.85rem;
+  color: var(--text-dim);
+  display: none;
+}
+
+.main {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  overflow: hidden;
+}
+
+.panel {
+  display: none;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  min-width: 0;
+}
+.panel.active { display: flex; }
+
+.panel-head {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.7rem 1rem;
+  border-block-end: 1px solid var(--border);
+  flex: 0 0 auto;
+}
+.panel-head h1 { margin: 0; font-size: 1.1rem; }
+
+/* Desktop: sidebar always visible next to the panel. */
+@media (min-width: 820px) {
+  .app-shell { flex-direction: row; }
+  .sidebar {
+    width: 260px;
+    border-block-end: none;
+    border-inline-end: 1px solid var(--border);
+  }
+  .tabs { flex-direction: column; padding: 0.5rem; }
+  .tab {
+    text-align: start;
+    border-block-end: none;
+    border-inline-start: 3px solid transparent;
+    border-radius: var(--radius);
+  }
+  .tab.active {
+    background: var(--bg-elev-2);
+    border-inline-start-color: var(--accent);
+  }
+  .me { display: block; }
+}
+
+/* --------------------------------------------------------------- lists */
+
+.room-list,
+.contact-list {
+  overflow-y: auto;
+  flex: 1;
+  min-height: 0;
+}
+
+.room-item,
+.contact-item {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.8rem 1rem;
+  border-block-end: 1px solid var(--border);
+  cursor: pointer;
+  min-height: 60px;
+}
+.room-item:hover,
+.contact-item:hover { background: var(--bg-elev); }
+
+.avatar {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: var(--bg-elev-2);
+  display: grid;
+  place-items: center;
+  font-weight: 700;
+  flex: 0 0 auto;
+  color: var(--accent);
+}
+
+.item-body { min-width: 0; flex: 1; }
+.item-title {
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.item-sub {
+  font-size: 0.82rem;
+  color: var(--text-dim);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.badge {
+  font-size: 0.7rem;
+  padding: 0.15rem 0.45rem;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  color: var(--text-dim);
+  white-space: nowrap;
+}
+.badge.ok { color: var(--ok); border-color: var(--ok); }
+
+.empty {
+  text-align: center;
+  padding: 3rem 1.5rem;
+  color: var(--text-dim);
+}
+.empty-title { font-weight: 600; color: var(--text); margin-bottom: 0.3rem; }
+
+/* ------------------------------------------------------------ messages */
+
+.message-list {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  overscroll-behavior: contain;
+}
+
+.bubble {
+  max-width: min(78%, 560px);
+  padding: 0.55rem 0.8rem;
+  border-radius: var(--radius);
+  background: var(--bg-elev-2);
+  word-break: break-word;
+  white-space: pre-wrap;
+  align-self: flex-start;
+}
+.bubble.out {
+  align-self: flex-end;
+  background: var(--accent-strong);
+  color: #fff;
+}
+.bubble .meta {
+  display: block;
+  font-size: 0.68rem;
+  opacity: 0.7;
+  margin-top: 0.25rem;
+}
+.bubble.warn { border: 1px solid var(--danger); }
+
+.bubble img,
+.bubble video {
+  max-width: 100%;
+  border-radius: 8px;
+  display: block;
+  margin-bottom: 0.3rem;
+}
+.bubble audio { width: 100%; margin-bottom: 0.3rem; }
+
+.file-chip {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding-block: 0.2rem;
+}
+.file-icon { font-size: 1.5rem; }
+.file-actions { display: flex; gap: 0.4rem; margin-top: 0.5rem; }
+
+/* ---------------------------------------------------------------- composer */
+
+.composer {
+  display: flex;
+  gap: 0.5rem;
+  align-items: flex-end;
+  padding: 0.6rem 0.8rem calc(0.6rem + env(safe-area-inset-bottom));
+  border-block-start: 1px solid var(--border);
+  background: var(--bg-elev);
+  flex: 0 0 auto;
+}
+
+.composer textarea {
+  flex: 1 1 auto;
+  min-width: 0;
+  /* 44px total height including padding, so the row does not overflow the
+     viewport and clip the send button on a phone. */
+  min-height: calc(var(--tap) - 1.2rem);
+  max-height: 8rem;
+  resize: none;
+  padding: 0.6rem 0.8rem;
+  line-height: 1.4;
+}
+
+.composer .btn { flex: 0 0 auto; }
+
+/* Give the conversation panel explicit vertical bounds so the composer is
+   always fully visible: header and composer are fixed, only the message list
+   scrolls. */
+#panel-conversation {
+  min-height: 0;
+}
+
+/* ---------------------------------------------------------------- modals */
+
+.modal {
+  position: fixed;
+  inset: 0;
+  background: rgb(0 0 0 / 65%);
+  display: grid;
+  place-items: center;
+  padding: 1rem;
+  z-index: 200;
+  overflow-y: auto;
+}
+.modal[hidden] { display: none; }
+
+.modal-card {
+  background: var(--bg-elev);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 1.25rem;
+  width: 100%;
+  max-width: 520px;
+  box-shadow: var(--shadow);
+}
+
+.safety-number {
+  font-size: 1.15rem;
+  text-align: center;
+  letter-spacing: 0.08em;
+  padding: 1rem;
+  background: var(--bg);
+  border-radius: var(--radius);
+  margin-block: 1rem;
+  line-height: 1.9;
+  word-spacing: 0.4em;
+}
+
+.recovery-list {
+  list-style: none;
+  padding: 0.75rem;
+  margin-block: 1rem;
+  background: var(--bg);
+  border-radius: var(--radius);
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 0.4rem;
+  font-size: 1rem;
+  letter-spacing: 0.06em;
+}
+@media (min-width: 480px) {
+  .recovery-list { grid-template-columns: 1fr 1fr; }
+}
+
+.my-card textarea { margin-block: 0.5rem; }
+.my-card { max-width: none; margin: 1rem; }
+
+.lang-row {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+.lang-btn.active {
+  border-color: var(--accent);
+  background: var(--bg-elev-2);
+}
+
+/* ------------------------------------------------------- reduced motion */
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    transition: none !important;
+    animation: none !important;
+  }
+}
+
+/* Scrollbars: thin, unobtrusive, dark. */
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 6px;
+}

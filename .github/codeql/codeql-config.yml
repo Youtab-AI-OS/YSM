@@ -1,0 +1,35 @@
+name: 'YSM CodeQL config'
+
+# CodeQL configuration.
+#
+# We scan the TypeScript source and the Electron/renderer JavaScript. Generated
+# and vendored code is excluded because findings there are not actionable here:
+# `build/` is compiled output, `renderer/i18n.js` is generated from the
+# TypeScript source, and `node_modules` is handled by the dependency audit.
+
+paths:
+  - src
+  - electron
+  - renderer
+  - scripts
+  - test
+
+paths-ignore:
+  - build
+  - dist
+  - release
+  - node_modules
+  - renderer/i18n.js
+  - docs
+
+# Treat high-signal correctness problems as errors rather than notes, so they
+# fail the check instead of being lost in a list.
+queries:
+  - uses: security-and-quality
+  - uses: security-extended
+
+query-filters:
+  # This is a desktop app with no HTTP surface, so request-forgery queries would
+  # be noise. Everything else stays on.
+  - exclude:
+      id: js/request-forgery

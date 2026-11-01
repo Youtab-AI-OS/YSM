@@ -1,0 +1,73 @@
+{
+  "name": "ysm",
+  "productName": "YSM",
+  "version": "1.0.0",
+  "description": "YSM — Youtab Security Message. End-to-end encrypted messaging. Local-first, no telemetry.",
+  "author": "Youtab",
+  "license": "UNLICENSED",
+  "private": true,
+  "type": "module",
+  "main": "electron/main.mjs",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "build:app": "tsc -p tsconfig.ysm.json",
+    "build:crypto": "tsc -p tsconfig.json",
+    "build:assets": "node scripts/build-ico.mjs",
+    "build:i18n": "node scripts/build-i18n.mjs",
+    "build": "npm run build:i18n && npm run build:assets && npm run build:app",
+    "typecheck": "tsc -p tsconfig.ysm.json --noEmit",
+    "start": "npm run build && electron .",
+    "test:unit": "npm run build && node scripts/test-crypto.mjs && node scripts/test-auth.mjs && node scripts/test-vault.mjs && node scripts/test-messaging.mjs && node scripts/test-service.mjs",
+    "test:electron": "npm run build && electron scripts/smoke-electron.cjs && electron scripts/e2e-electron.cjs && electron scripts/e2e-two-users.cjs",
+    "test:ui": "npm run build && electron scripts/test-responsive.cjs && electron scripts/capture-screenshots.cjs",
+    "test:tools": "node scripts/test-qr-decode.cjs && node scripts/test-urlguard.cjs",
+    "test:lib": "npm run build:crypto && node --test test/*.test.mjs",
+    "test": "npm run test:tools && npm run test:lib && npm run test:unit && npm run test:electron && npm run test:ui",
+    "dist": "node scripts/build-installer.mjs"
+  },
+  "dependencies": {
+    "@noble/ciphers": "^2.0.1",
+    "@noble/curves": "^2.4.0",
+    "@noble/hashes": "^2.1.1",
+    "qrcode": "^1.5.4"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.2",
+    "electron": "^45.2.1",
+    "electron-builder": "^26.0.12",
+    "jsqr": "^1.4.0",
+    "pngjs": "^7.0.0",
+    "typescript": "^5.7.2"
+  },
+  "build": {
+    "appId": "nl.youtab.ysm",
+    "productName": "YSM",
+    "copyright": "Copyright © Youtab",
+    "directories": {
+      "output": "release",
+      "buildResources": "assets"
+    },
+    "files": [
+      "electron/**/*",
+      "renderer/**/*",
+      "build/ysm/**/*",
+      "assets/icon.png",
+      "package.json"
+    ],
+    "asar": true,
+    "win": {
+      "target": [
+        {
+          "target": "dir",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "assets/ysm.ico"
+    },
+    "npmRebuild": false
+  }
+}

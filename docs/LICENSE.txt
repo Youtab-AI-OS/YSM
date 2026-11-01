@@ -1,0 +1,36 @@
+YSM — Youtab Security Message
+=============================
+
+Copyright (c) Youtab. All rights reserved.
+
+This software is provided for use by the licensee. It is not open source.
+
+Permission to use this software is granted only under the terms agreed with
+Youtab. Redistribution, modification, or resale requires written permission.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS
+FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR
+COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER
+IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
+CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+IMPORTANT — DATA LOSS
+---------------------
+YSM stores your messages and encryption keys encrypted on this device only.
+There is no server, no cloud backup and no recovery service. If you lose your
+password, your authenticator app AND your recovery codes, your messages are
+permanently unrecoverable. This is a consequence of the security design, not a
+defect.
+
+Component licences
+------------------
+YSM bundles the following third-party components under their own licences:
+
+- Electron (MIT) — https://github.com/electron/electron
+- @noble/ciphers, @noble/curves, @noble/hashes (MIT) — https://github.com/paulmillr/noble-hashes
+- node-qrcode (MIT) — https://github.com/soldair/node-qrcode
+- Node.js (MIT) — https://nodejs.org
+
+Full licence texts are included in LICENSES.chromium.html and the accompanying
+LICENSE.electron.txt in the application directory.

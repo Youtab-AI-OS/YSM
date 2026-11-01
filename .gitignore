@@ -1,0 +1,52 @@
+# --- dependencies ---
+node_modules/
+.pnp.*
+.yarn/
+
+# --- build output ---
+dist/
+build/
+release/
+*.tsbuildinfo
+
+# --- secrets and keys: NEVER commit ---
+# Android signing
+*.keystore
+*.jks
+keystore.properties
+# Certificates and private keys
+*.key
+*.pem
+*.pfx
+*.p12
+*.crt
+*.cer
+# Generic secret stores
+.env
+.env.*
+*secret*
+*credential*
+# YSM encrypted message files and vaults
+*.ysm
+*.cmsg
+ysm-account.db
+ysm-account.db-wal
+ysm-account.db-shm
+
+# --- generated but tracked intentionally ---
+# docs/vectors.json is captured evidence and IS committed
+!docs/vectors.json
+
+# --- OS / editor noise ---
+.DS_Store
+Thumbs.db
+desktop.ini
+.idea/
+.vscode/*
+!.vscode/extensions.json
+
+# --- test / tool output ---
+*.log
+coverage/
+.automation/
+icon_d8b/

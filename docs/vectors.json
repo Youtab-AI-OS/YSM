@@ -1,0 +1,66 @@
+{
+  "source": "aesencryption.net js/aes-browser.js",
+  "captured": "2026-11-01",
+  "vectors": [
+    {
+      "text": "My text to encrypt.",
+      "password": "encryptor key",
+      "bits": 256,
+      "base64": "a8FC/4chLgfmBP1MAM0C/D8KqddSjxepiw6PLI6wlVk="
+    },
+    {
+      "text": "My text to encrypt.",
+      "password": "encryptor key",
+      "bits": 128,
+      "base64": "OWcMplyUQMKwY7Qhmr+Vjr++e5MMVnIKL5/70+Oj3K8="
+    },
+    {
+      "text": "My text to encrypt.",
+      "password": "encryptor key",
+      "bits": 192,
+      "base64": "cxmHHletkHgGgN2/tGeYaaI5+LOA1Zwkk6UZMZtSoEg="
+    },
+    {
+      "text": "",
+      "password": "key",
+      "bits": 256,
+      "base64": "3YFrvGTNN4y8jt5Jx4TnJw=="
+    },
+    {
+      "text": "short",
+      "password": "k",
+      "bits": 256,
+      "base64": "Wm8aRW1Yyt+lYGT+FBauJw=="
+    },
+    {
+      "text": "aaaaaaaaaaaaaaaa",
+      "password": "0123456789abcdefXYZ",
+      "bits": 256,
+      "base64": "xUv55U9aeET3PG8ThFl/CRVYOIoWD1UJ3oQMAgo/n4A="
+    },
+    {
+      "text": "a",
+      "password": "طولیانیفففففففففففففففففففف",
+      "bits": 256,
+      "base64": "rskM1pCfA4+VLcLYnQgkxQ=="
+    },
+    {
+      "text": "interop 2024: line one, line two",
+      "password": "K9x!mQ2#vL",
+      "bits": 256,
+      "base64": "z7z03dCMct7keX/l3rInbiCLOB5IgfbdYMn+EJ//aIdyuIWCvCKj1Fw2C91HjGz5"
+    },
+    {
+      "text": "فارسی پیام آزمایشی",
+      "password": "کلید مخفی من",
+      "bits": 192,
+      "base64": "e6Uh8zXCx3RnVTp8JqFO4kCQSkwyazEMZRaWgxjppet0Hy2kPnoS335hhjlzgP5c"
+    },
+    {
+      "text": "tail spaces   ",
+      "password": "abc",
+      "bits": 256,
+      "base64": "uDJqTeAJObY3PEzWIoBMIg=="
+    }
+  ]
+}
