@@ -6,6 +6,10 @@
  * a renamed PNG shows as a generic icon. This writes a proper ICO container with
  * PNG-compressed entries (supported since Windows Vista), which keeps the file
  * small and avoids needing an image library.
+ *
+ * Source is `assets/icon.png`, which is committed. The original reference
+ * screenshots in `icon_d8b/` are not part of the repo, so this must not depend on
+ * them — a lesson from CI failing on a clean checkout.
  */
 import { readFileSync, writeFileSync, existsSync } from 'node:fs';
 import { join, dirname } from 'node:path';
@@ -13,11 +17,14 @@ import { fileURLToPath } from 'node:url';
 import { PNG } from 'pngjs';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
-const source = join(root, 'icon_d8b', 'app-icon-256.png');
+const source = join(root, 'assets', 'icon.png');
 const out = join(root, 'assets', 'ysm.ico');
 
 if (!existsSync(source)) {
-  throw new Error(`source icon not found: ${source}`);
+  throw new Error(
+    `source icon not found: ${source}\n` +
+      'assets/icon.png is committed and must exist; restore it before building.',
+  );
 }
 
 /**
