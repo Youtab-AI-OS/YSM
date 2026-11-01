@@ -137,6 +137,37 @@ CREATE TABLE IF NOT EXISTS auth_state (
   locked_until  INTEGER NOT NULL DEFAULT 0,
   last_totp_ctr INTEGER
 );
+
+-- Sealed payloads (the "Create crypto" flow).
+--
+-- One row per sealed message or file. The reference is the primary key: it is a
+-- hash of the ciphertext, so it doubles as the lookup key for a reader who has
+-- only the reference string.
+--
+-- The passphrase is deliberately NOT stored, here or anywhere else. Losing it
+-- means the payload cannot be recovered — by the author included. That is the
+-- whole point of separating it from the reference, and it is surfaced in the UI
+-- rather than left as a surprise.
+--
+-- The column "role" records whether this row was created here ('out') or imported
+-- after a reader pasted someone else's reference ('in'), so the author can be
+-- warned that an imported item must be kept if it is to be read again.
+CREATE TABLE IF NOT EXISTS sealed (
+  reference   TEXT PRIMARY KEY,
+  version     INTEGER NOT NULL,
+  argon_t     INTEGER NOT NULL,
+  argon_m     INTEGER NOT NULL,
+  argon_p     INTEGER NOT NULL,
+  salt        BLOB NOT NULL,
+  nonce       BLOB NOT NULL,
+  ciphertext  BLOB NOT NULL,
+  role        TEXT NOT NULL,
+  is_file     INTEGER NOT NULL DEFAULT 0,
+  size        INTEGER NOT NULL DEFAULT 0,
+  created_at  INTEGER NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_sealed_created ON sealed(created_at);
 `;
 
 /** Statements applied after the schema, idempotently. */

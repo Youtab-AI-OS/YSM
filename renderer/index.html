@@ -83,8 +83,10 @@
         <h2 data-i18n="onboard.recoveryTitle"></h2>
         <p data-i18n="onboard.recoveryIntro"></p>
         <ul id="recovery-list" class="recovery-list mono"></ul>
-        <div class="row-actions">
+        <div class="copy-row">
           <button type="button" class="btn btn-ghost" id="copy-recovery" data-i18n="onboard.copiedAll"></button>
+          <button type="button" class="btn btn-ghost" id="download-recovery-csv" data-i18n="onboard.downloadCsv"></button>
+          <button type="button" class="btn btn-ghost" id="download-recovery-pdf" data-i18n="onboard.downloadPdf"></button>
         </div>
         <label class="check-row">
           <input type="checkbox" id="recovery-ack" />
@@ -125,6 +127,7 @@
         </header>
         <nav class="tabs">
           <button class="tab active" data-tab="chats" data-i18n="nav.chats"></button>
+          <button class="tab" data-tab="crypto" data-i18n="nav.crypto"></button>
           <button class="tab" data-tab="contacts" data-i18n="nav.contacts"></button>
           <button class="tab" data-tab="settings" data-i18n="nav.settings"></button>
         </nav>
@@ -160,6 +163,97 @@
           <input type="file" id="file-input" hidden />
         </section>
 
+        <!-- Crypto: seal a message or file, or open someone else's reference -->
+        <section id="panel-crypto" class="panel">
+          <div class="panel-head">
+            <h1 data-i18n="nav.crypto"></h1>
+          </div>
+
+          <div class="crypto-modes" role="tablist">
+            <button class="seg active" id="crypto-tab-write" data-i18n="crypto.writeTab"></button>
+            <button class="seg" id="crypto-tab-read" data-i18n="crypto.readTab"></button>
+          </div>
+
+          <!-- Compose -->
+          <div id="crypto-write" class="crypto-pane active">
+            <div class="card">
+              <label for="crypto-text" data-i18n="crypto.messageLabel"></label>
+              <textarea id="crypto-text" rows="6" data-i18n-placeholder="crypto.messagePlaceholder"></textarea>
+
+              <div class="crypto-attach-row">
+                <button class="btn btn-ghost" id="crypto-pick-file" data-i18n="crypto.pickFile"></button>
+                <span id="crypto-file-name" class="item-sub" hidden></span>
+                <button class="btn btn-ghost" id="crypto-clear-file" hidden data-i18n="common.clear"></button>
+              </div>
+              <input type="file" id="crypto-file-input" hidden />
+
+              <p class="hint" data-i18n="crypto.writeHint"></p>
+              <p id="crypto-write-error" class="error" role="alert" hidden></p>
+
+              <button class="btn btn-primary full" id="crypto-create" data-i18n="crypto.create"></button>
+            </div>
+
+            <!-- Result: the two strings -->
+            <div id="crypto-result" class="card" hidden>
+              <h3 data-i18n="crypto.resultTitle"></h3>
+              <p class="hint" data-i18n="crypto.resultHint"></p>
+
+              <label data-i18n="crypto.referenceLabel"></label>
+              <div class="copy-row">
+                <input id="crypto-ref-out" class="mono" readonly />
+                <button class="btn btn-ghost" id="crypto-copy-ref" data-i18n="common.copy"></button>
+              </div>
+
+              <label data-i18n="crypto.passphraseLabel"></label>
+              <div class="copy-row">
+                <input id="crypto-pass-out" class="mono" readonly />
+                <button class="btn btn-ghost" id="crypto-copy-pass" data-i18n="common.copy"></button>
+              </div>
+
+              <p class="warn" data-i18n="crypto.passphraseWarning"></p>
+
+              <div class="copy-row">
+                <button class="btn btn-ghost" id="crypto-save-block" data-i18n="crypto.saveBlock"></button>
+                <button class="btn btn-ghost" id="crypto-new" data-i18n="crypto.startOver"></button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Read -->
+          <div id="crypto-read" class="crypto-pane">
+            <div class="card">
+              <label for="read-reference" data-i18n="crypto.referenceLabel"></label>
+              <textarea id="read-reference" class="mono" rows="3" data-i18n-placeholder="crypto.referencePlaceholder"></textarea>
+
+              <label for="read-passphrase" data-i18n="crypto.passphraseLabel"></label>
+              <input id="read-passphrase" class="mono" type="text" autocomplete="off" spellcheck="false" />
+
+              <p class="hint" data-i18n="crypto.readHint"></p>
+              <p id="read-error" class="error" role="alert" hidden></p>
+
+              <button class="btn btn-primary full" id="read-open" data-i18n="crypto.open"></button>
+            </div>
+
+            <div id="read-output" class="card" hidden>
+              <h3 data-i18n="crypto.openedTitle"></h3>
+
+              <div id="read-text-wrap">
+                <pre id="read-text" class="read-text"></pre>
+                <button class="btn btn-ghost" id="read-copy-text" data-i18n="common.copy"></button>
+              </div>
+
+              <div id="read-file-wrap" hidden>
+                <p id="read-file-meta" class="item-sub"></p>
+                <div class="copy-row">
+                  <button class="btn btn-primary" id="read-download" data-i18n="crypto.download"></button>
+                </div>
+              </div>
+
+              <button class="btn btn-ghost full" id="read-clear" data-i18n="common.clear"></button>
+            </div>
+          </div>
+        </section>
+
         <!-- Contacts -->
         <section id="panel-contacts" class="panel">
           <div class="panel-head">
@@ -191,11 +285,11 @@
             <h3 data-i18n="settings.security"></h3>
             <label for="autolock-select" data-i18n="settings.autoLock"></label>
             <select id="autolock-select">
-              <option value="0" data-i18n="settings.autoLockOff"></option>
-              <option value="1">1</option>
-              <option value="5" selected>5</option>
-              <option value="15">15</option>
-              <option value="30">30</option>
+              <option value="30">30 s</option>
+              <option value="60">1 min</option>
+              <option value="120">2 min</option>
+              <option value="180">3 min</option>
+              <option value="300" selected>5 min</option>
             </select>
             <p class="hint" data-i18n="settings.lockWarning"></p>
             <button class="btn btn-danger" id="btn-lock-settings" data-i18n="settings.lockNow"></button>
@@ -241,7 +335,6 @@
     </div>
 
     <div id="toast" class="toast" hidden></div>
-
     <script type="module" src="./app.js"></script>
   </body>
 </html>

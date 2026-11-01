@@ -395,6 +395,9 @@ async function lockNow() {
   state.contacts = [];
   state.rooms = [];
   $('message-list').textContent = '';
+  // Wipe any plaintext, passphrase or decrypted file left in the Crypto panes, so
+  // locking really does remove secrets from the screen.
+  clearCryptoOnLock();
   show('screen-unlock');
   $('unlock-password').focus();
 }
@@ -884,9 +887,12 @@ async function setLocale(locale) {
 }
 
 async function handleAutoLockChange(event) {
-  const minutes = Number(event.target.value);
+  // The select carries seconds. The service rejects anything outside 30..300, so
+  // a tampered DOM value surfaces as a toast rather than a silent change.
+  const seconds = Number(event.target.value);
   try {
-    await call('settings:setAutoLock', { minutes });
+    await call('settings:setAutoLock', { seconds });
+    toast(translate(state.locale, 'settings.autoLockSaved'));
   } catch (error) {
     toast(describe(error));
   }
@@ -941,6 +947,13 @@ function wire() {
     } catch {
       /* ignore */
     }
+  });
+
+  $('download-recovery-csv').addEventListener('click', () => {
+    downloadRecoveryCsv();
+  });
+  $('download-recovery-pdf').addEventListener('click', () => {
+    downloadRecoveryPdf();
   });
   $('recovery-done').addEventListener('click', async () => {
     // Onboarding secrets are shown exactly once; drop them from memory now.
@@ -1025,5 +1038,413 @@ function wire() {
   });
 }
 
+
+// ---------------------------------------------------------------------------
+// Crypto tab: seal a message or file, or open someone else's reference.
+//
+// Security rules followed here:
+//   - every value written into the DOM uses textContent or .value, never
+//     innerHTML, so decrypted text cannot inject markup
+//   - the passphrase lives in an <input> the user copies, and is cleared as soon
+//     as the user starts over or the vault locks
+//   - a file is handed to the reader as a Blob download, preserving its name and
+//     type so the operating system opens it in the right application
+// ---------------------------------------------------------------------------
+
+/** State for the compose side. Deliberately holds no passphrase after use. */
+const cryptoState = {
+  file: null, // { name, mime, base64 }
+  lastResult: null,
+};
+
+let pendingDownload = null;
+
+function setCryptoMode(mode) {
+  $('crypto-tab-write').classList.toggle('active', mode === 'write');
+  $('crypto-tab-read').classList.toggle('active', mode === 'read');
+  $('crypto-write').classList.toggle('active', mode === 'write');
+  $('crypto-read').classList.toggle('active', mode === 'read');
+}
+
+function clearCryptoCompose() {
+  $('crypto-text').value = '';
+  cryptoState.file = null;
+  cryptoState.lastResult = null;
+  $('crypto-file-name').hidden = true;
+  $('crypto-file-name').textContent = '';
+  $('crypto-clear-file').hidden = true;
+  $('crypto-file-input').value = '';
+  $('crypto-result').hidden = true;
+  $('crypto-ref-out').value = '';
+  $('crypto-pass-out').value = '';
+  setError('crypto-write-error', '');
+}
+
+function clearReadPane() {
+  $('read-reference').value = '';
+  $('read-passphrase').value = '';
+  $('read-output').hidden = true;
+  $('read-text').textContent = '';
+  $('read-file-meta').textContent = '';
+  $('read-text-wrap').hidden = false;
+  $('read-file-wrap').hidden = true;
+  pendingDownload = null;
+  setError('read-error', '');
+}
+
+/** Read a picked file into base64, with a size guard before allocating. */
+async function readPickedFile(file) {
+  const MAX = 25 * 1024 * 1024;
+  if (file.size > MAX) {
+    throw new AppError('TOO_LARGE', `files are limited to ${Math.floor(MAX / 1024 / 1024)} MB`);
+  }
+  const buffer = await file.arrayBuffer();
+  const bytes = new Uint8Array(buffer);
+  let binary = '';
+  for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]);
+  return {
+    name: file.name,
+    mime: file.type || 'application/octet-stream',
+    base64: btoa(binary),
+  };
+}
+
+/**
+ * Download the decrypted file.
+ *
+ * Blob + object URL keeps the original filename and MIME type, so the operating
+ * system opens it in the right application instead of a generic download. The URL
+ * is revoked after the click so the bytes do not linger.
+ */
+function downloadBase64(base64, fileName, mimeType) {
+  const binary = atob(base64);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+  const blob = new Blob([bytes], { type: mimeType || 'application/octet-stream' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = fileName || 'file';
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  // Give the download a moment to start before releasing the object.
+  setTimeout(() => URL.revokeObjectURL(url), 10_000);
+}
+
+/** Copy text to the clipboard, reporting failure rather than failing silently. */
+async function copyToClipboard(text, button) {
+  try {
+    await navigator.clipboard.writeText(text);
+    const original = button.textContent;
+    button.textContent = '✓';
+    setTimeout(() => {
+      button.textContent = original;
+    }, 1200);
+  } catch {
+    // Clipboard can be blocked; fall back to selecting the adjacent input so the
+    // user can copy manually.
+    const row = button.previousElementSibling;
+    if (row && typeof row.select === 'function') {
+      row.select();
+    }
+  }
+}
+
+function wireCrypto() {
+  $('crypto-tab-write').addEventListener('click', () => setCryptoMode('write'));
+  $('crypto-tab-read').addEventListener('click', () => setCryptoMode('read'));
+
+  // --- compose ---
+  $('crypto-pick-file').addEventListener('click', () => $('crypto-file-input').click());
+
+  $('crypto-file-input').addEventListener('change', async (event) => {
+    const file = event.target.files && event.target.files[0];
+    if (!file) return;
+    try {
+      setError('crypto-write-error', '');
+      cryptoState.file = await readPickedFile(file);
+      $('crypto-file-name').textContent = file.name;
+      $('crypto-file-name').hidden = false;
+      $('crypto-clear-file').hidden = false;
+    } catch (error) {
+      setError('crypto-write-error', describe(error));
+      cryptoState.file = null;
+      $('crypto-file-name').hidden = true;
+      $('crypto-clear-file').hidden = true;
+    }
+  });
+
+  $('crypto-clear-file').addEventListener('click', () => {
+    cryptoState.file = null;
+    $('crypto-file-name').hidden = true;
+    $('crypto-file-name').textContent = '';
+    $('crypto-clear-file').hidden = true;
+    $('crypto-file-input').value = '';
+  });
+
+  $('crypto-create').addEventListener('click', async () => {
+    const button = $('crypto-create');
+    const original = button.textContent;
+    button.disabled = true;
+    button.textContent = '…';
+    try {
+      setError('crypto-write-error', '');
+      const text = $('crypto-text').value;
+
+      // A file wins if one is picked; text is ignored in that case, which is what
+      // the user expects after choosing a file.
+      const payload = cryptoState.file
+        ? { dataBase64: cryptoState.file.base64, fileName: cryptoState.file.name, mimeType: cryptoState.file.mime }
+        : { text };
+
+      if (!cryptoState.file && text.trim().length === 0) {
+        throw new AppError('BAD_INPUT', 'type a message or choose a file first');
+      }
+
+      const result = await call('sealed:create', payload);
+      cryptoState.lastResult = result;
+
+      $('crypto-ref-out').value = result.reference;
+      $('crypto-pass-out').value = result.passphrase;
+      $('crypto-result').hidden = false;
+
+      // The plaintext leaves the box as soon as it is sealed: keeping it there
+      // would leave the readable version on screen next to its ciphertext.
+      $('crypto-text').value = '';
+      cryptoState.file = null;
+      $('crypto-file-name').hidden = true;
+      $('crypto-clear-file').hidden = true;
+      $('crypto-file-input').value = '';
+
+      $('crypto-result').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    } catch (error) {
+      setError('crypto-write-error', describe(error));
+    } finally {
+      button.disabled = false;
+      button.textContent = original;
+    }
+  });
+
+  $('crypto-copy-ref').addEventListener('click', (e) => {
+    copyToClipboard($('crypto-ref-out').value, e.currentTarget);
+  });
+  $('crypto-copy-pass').addEventListener('click', (e) => {
+    copyToClipboard($('crypto-pass-out').value, e.currentTarget);
+  });
+
+  $('crypto-save-block').addEventListener('click', () => {
+    const result = cryptoState.lastResult;
+    if (!result) return;
+    // A small text file holding both strings, for the user who wants to keep them
+    // together until they send them. It is plain text and contains the passphrase,
+    // so the UI warns before this button.
+    const body = [
+      'YSM sealed reference',
+      '',
+      `Reference:  ${result.reference}`,
+      `Passphrase: ${result.passphrase}`,
+      '',
+      `Created:    ${new Date(result.createdAt).toISOString()}`,
+      `Type:       ${result.isFile ? 'file' : 'text'}`,
+      ...(result.fileName ? [`File name:  ${result.fileName}`] : []),
+      `Size:       ${result.size} bytes`,
+      '',
+      'Send the reference and the passphrase through different channels.',
+      'Anyone who has both can read the content.',
+    ].join('\n');
+    const blob = new Blob([body], { type: 'text/plain' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `ysm-${result.reference.slice(4, 16)}.txt`;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 10_000);
+  });
+
+  $('crypto-new').addEventListener('click', () => {
+    clearCryptoCompose();
+    $('crypto-text').focus();
+  });
+
+  // --- read ---
+  $('read-open').addEventListener('click', async () => {
+    const button = $('read-open');
+    const original = button.textContent;
+    button.disabled = true;
+    button.textContent = '…';
+    try {
+      setError('read-error', '');
+      const reference = $('read-reference').value.trim();
+      const passphrase = $('read-passphrase').value.trim();
+      if (reference.length === 0) throw new AppError('BAD_REFERENCE', 'paste a reference first');
+      if (passphrase.length === 0) throw new AppError('BAD_PASSPHRASE', 'type the passphrase');
+
+      const opened = await call('sealed:open', { reference, passphrase });
+
+      $('read-output').hidden = false;
+
+      if (opened.isFile) {
+        $('read-text-wrap').hidden = true;
+        $('read-file-wrap').hidden = false;
+        const sizeKb = (opened.size / 1024).toFixed(1);
+        $('read-file-meta').textContent = `${opened.fileName || 'file'} — ${sizeKb} KB`;
+        pendingDownload = {
+          base64: opened.dataBase64,
+          fileName: opened.fileName,
+          mimeType: opened.mimeType,
+        };
+      } else {
+        $('read-text-wrap').hidden = false;
+        $('read-file-wrap').hidden = true;
+        // textContent, never innerHTML: the decrypted text is untrusted input.
+        $('read-text').textContent = opened.text || '';
+        pendingDownload = null;
+      }
+
+      // The passphrase is no longer needed once the content is on screen.
+      $('read-passphrase').value = '';
+    } catch (error) {
+      setError('read-error', describe(error));
+      $('read-output').hidden = true;
+    } finally {
+      button.disabled = false;
+      button.textContent = original;
+    }
+  });
+
+  $('read-copy-text').addEventListener('click', (e) => {
+    copyToClipboard($('read-text').textContent || '', e.currentTarget);
+  });
+
+  $('read-download').addEventListener('click', () => {
+    if (!pendingDownload || !pendingDownload.base64) return;
+    downloadBase64(pendingDownload.base64, pendingDownload.fileName, pendingDownload.mimeType);
+  });
+
+  $('read-clear').addEventListener('click', clearReadPane);
+}
+
+// Clear secrets from the crypto panes whenever the vault locks, so an unattended
+// screen does not keep a passphrase or decrypted text visible.
+function clearCryptoOnLock() {
+  clearCryptoCompose();
+  clearReadPane();
+}
+
+// ---------------------------------------------------------------------------
+// Recovery code export
+//
+// The codes are shown once. Offering a download is what makes "save these
+// offline" actionable rather than a nag. Both formats contain the same secret
+// material, so the file is plain text/PDF the user is expected to store safely;
+// the UI says so.
+// ---------------------------------------------------------------------------
+
+/** Trigger a browser download from a Blob. */
+function downloadBlob(blob, fileName) {
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = fileName;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 10_000);
+}
+
+function recoveryCodes() {
+  return (state.onboarding && state.onboarding.recoveryCodes) || [];
+}
+
+/** Escape a value for a CSV field (RFC 4180). */
+function csvField(value) {
+  const text = String(value);
+  return /[",\n\r]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
+}
+
+function downloadRecoveryCsv() {
+  const codes = recoveryCodes();
+  if (codes.length === 0) return;
+  const when = new Date().toISOString();
+  const rows = [
+    ['index', 'recovery_code', 'created_at'].map(csvField).join(','),
+    ...codes.map((code, i) => [String(i + 1), code, when].map(csvField).join(',')),
+  ];
+  // A BOM so spreadsheet applications detect UTF-8; the codes are ASCII, but the
+  // header text may be localised later.
+  const blob = new Blob(['\uFEFF' + rows.join('\r\n') + '\r\n'], { type: 'text/csv;charset=utf-8' });
+  downloadBlob(blob, `ysm-recovery-codes-${when.slice(0, 10)}.csv`);
+}
+
+/**
+ * Produce a minimal but valid PDF containing the recovery codes.
+ *
+ * Written by hand rather than pulling a PDF library: the document is a single
+ * page of fixed-width text, and a dependency here would add a large attack
+ * surface to an offline, high-consequence application for one button.
+ *
+ * Structure: catalog -> pages -> page -> contents stream + Helvetica font. Offsets
+ * are recorded as the objects are emitted so the xref table is correct; without
+ * that a viewer rejects the file.
+ */
+function buildRecoveryPdf(title, subtitle, codes) {
+  const esc = (s) => String(s).replace(/\\/g, '\\\\').replace(/\(/g, '\\(').replace(/\)/g, '\\)');
+  const lines = [title, '', subtitle, ''];
+  for (const [i, code] of codes.entries()) lines.push(`${String(i + 1).padStart(2, ' ')}.  ${code}`);
+
+  // 18 pt title, 11 pt body.
+  let text = 'BT\n';
+  text += '/F1 18 Tf\n1 0 0 1 56 760 Tm\n';
+  text += `(${esc(lines[0])}) Tj\n`;
+  text += '/F1 11 Tf\n';
+  let y = 726;
+  for (const line of lines.slice(1)) {
+    text += `1 0 0 1 56 ${y} Tm\n(${esc(line)}) Tj\n`;
+    y -= 18;
+  }
+  text += 'ET\n';
+
+  const objects = [
+    '<< /Type /Catalog /Pages 2 0 R >>',
+    '<< /Type /Pages /Kids [3 0 R] /Count 1 >>',
+    '<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 5 0 R >> >> /Contents 4 0 R >>',
+    `<< /Length ${text.length} >>\nstream\n${text}endstream`,
+    '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>',
+  ];
+
+  let pdf = '%PDF-1.4\n';
+  const offsets = [];
+  for (const [i, body] of objects.entries()) {
+    offsets.push(pdf.length);
+    pdf += `${i + 1} 0 obj\n${body}\nendobj\n`;
+  }
+  const xrefStart = pdf.length;
+  pdf += `xref\n0 ${objects.length + 1}\n0000000000 65535 f \n`;
+  for (const offset of offsets) pdf += `${String(offset).padStart(10, '0')} 00000 n \n`;
+  pdf += `trailer\n<< /Size ${objects.length + 1} /Root 1 0 R >>\nstartxref\n${xrefStart}\n%%EOF\n`;
+
+  // Latin-1 keeps the byte offsets above identical to the string lengths; a
+  // multi-byte encoding would invalidate the xref table.
+  const bytes = new Uint8Array(pdf.length);
+  for (let i = 0; i < pdf.length; i++) bytes[i] = pdf.charCodeAt(i) & 0xff;
+  return new Blob([bytes], { type: 'application/pdf' });
+}
+
+function downloadRecoveryPdf() {
+  const codes = recoveryCodes();
+  if (codes.length === 0) return;
+  const when = new Date().toISOString().slice(0, 10);
+  const pdf = buildRecoveryPdf(
+    'YSM recovery codes',
+    `Created ${when}. Each code works once. Keep this file offline.`,
+    codes,
+  );
+  downloadBlob(pdf, `ysm-recovery-codes-${when}.pdf`);
+}
+
 wire();
+wireCrypto();
 boot();

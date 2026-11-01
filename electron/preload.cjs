@@ -38,6 +38,11 @@ const ALLOWED = Object.freeze([
   'settings:getLocale',
   'settings:setAutoLock',
   'settings:getAutoLock',
+  'sealed:create',
+  'sealed:open',
+  'sealed:list',
+  'sealed:forget',
+  'sealed:save',
   'app:version',
 ]);
 

@@ -164,10 +164,17 @@ app.whenReady().then(async () => {
   const badLocale = await invoke(win, 'settings:setLocale', { locale: 'xx' });
   check('invalid locale rejected', badLocale.ok === false && badLocale.code === 'INVALID_PAYLOAD');
 
-  const setAutolock = await invoke(win, 'settings:setAutoLock', { minutes: 15 });
-  check('autolock accepted', setAutolock.ok === true);
-  const badAutolock = await invoke(win, 'settings:setAutoLock', { minutes: 99999 });
-  check('out-of-range autolock rejected', badAutolock.ok === false);
+  // Auto-lock is a number of seconds in 30..300.
+  const setAutolock = await invoke(win, 'settings:setAutoLock', { seconds: 120 });
+  check('autolock accepted', setAutolock.ok === true, JSON.stringify(setAutolock).slice(0, 100));
+  const readAutolock = await invoke(win, 'settings:getAutoLock');
+  check('autolock reads back', readAutolock.ok === true && readAutolock.value === 120, String(readAutolock.value));
+  const badAutolock = await invoke(win, 'settings:setAutoLock', { seconds: 5 });
+  check('autolock below 30s rejected', badAutolock.ok === false, JSON.stringify(badAutolock).slice(0, 100));
+  const badAutolockHigh = await invoke(win, 'settings:setAutoLock', { seconds: 99999 });
+  check('autolock above 300s rejected', badAutolockHigh.ok === false);
+  const oldShape = await invoke(win, 'settings:setAutoLock', { minutes: 15 });
+  check('the old minutes payload is rejected', oldShape.ok === false);
 
   const version = await invoke(win, 'app:version', {});
   check('version reachable', version.ok && typeof version.value.version === 'string');

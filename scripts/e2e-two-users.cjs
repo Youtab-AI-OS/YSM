@@ -26,10 +26,8 @@ function check(name, cond, extra = '') {
     console.log(`  PASS ${name}`);
   } else {
     fail++;
-    // Truncate and strip newlines: failure detail never needs to be long, and a
-    // value that reached this point should not be echoed in full to a log.
-    const detail = String(extra).replace(/\s+/g, ' ').slice(0, 160);
-    console.log(`  FAIL ${name} ${detail}`);
+    // Detail may contain a password or a decrypted value; never print it.
+    console.log(`  FAIL ${name} (detail withheld: may contain test secrets)`);
   }
 }
 

@@ -66,7 +66,7 @@ let service = null;
 let mainWindow = null;
 /** Idle auto-lock timer. */
 let autoLockTimer = null;
-let autoLockMinutes = 5;
+let autoLockSeconds = 300;
 
 // The renderer is served directly from disk; every request outside this directory
 // is denied by the request filter below.
@@ -332,13 +332,20 @@ function installIpcHandlers() {
   });
   handle('settings:getLocale', (s) => s.getLocale());
   handle('settings:setAutoLock', (s, p) => {
-    const minutes = p.minutes;
-    s.setAutoLock(minutes);
-    autoLockMinutes = minutes;
+    const seconds = p.seconds;
+    s.setAutoLock(seconds);
+    autoLockSeconds = seconds;
     scheduleAutoLock();
     return undefined;
   });
   handle('settings:getAutoLock', (s) => s.getAutoLock());
+
+  // Sealed references ("Create crypto").
+  handle('sealed:create', (s, p) => s.sealPayload(p));
+  handle('sealed:open', (s, p) => s.openSealed(p));
+  handle('sealed:list', (s) => s.sealedItems());
+  handle('sealed:forget', (s, p) => s.forgetSealed(p.reference));
+  handle('sealed:save', (s, p) => s.saveSealed(p.reference, p.passphrase));
 
   handle('app:version', () => ({
     version: app.getVersion(),
@@ -359,11 +366,11 @@ function installIpcHandlers() {
 
 function scheduleAutoLock() {
   clearAutoLock();
-  if (autoLockMinutes <= 0) return;
+  if (autoLockSeconds <= 0) return;
   autoLockTimer = setTimeout(() => {
     service?.lock();
     mainWindow?.webContents.send('app:locked');
-  }, autoLockMinutes * 60_000);
+  }, autoLockSeconds * 1000);
   autoLockTimer.unref?.();
 }
 
@@ -386,7 +393,7 @@ app.on('second-instance', () => {
 app.whenReady().then(() => {
   // Account data lives under userData; nothing else is written anywhere.
   service = new AppService({ dataDir: join(app.getPath('userData'), 'ysm-data') });
-  autoLockMinutes = service.getAutoLock();
+  autoLockSeconds = service.getAutoLock();
 
   installNetworkGuard();
   installIpcHandlers();

@@ -76,6 +76,44 @@ export type UiResult<T> =
   | { ok: true; value: T }
   | { ok: false; code: string; message: string };
 
+/** A freshly sealed payload: the two strings the user shares. */
+export interface UiSealedCreated {
+  /** `YSM_` + 64 hex characters. Safe to send over any channel. */
+  readonly reference: string;
+  /**
+   * The one-time passphrase. Shown once and never stored.
+   *
+   * Send this over a *different* channel from the reference, so a party who
+   * captures one does not have both.
+   */
+  readonly passphrase: string;
+  readonly isFile: boolean;
+  readonly fileName?: string;
+  readonly size: number;
+  readonly createdAt: number;
+}
+
+/** A decrypted payload, ready to display or save. */
+export interface UiSealedOpened {
+  readonly reference: string;
+  readonly isFile: boolean;
+  readonly text?: string;
+  readonly fileName?: string;
+  readonly mimeType?: string;
+  readonly size: number;
+  /** base64 bytes, when the payload is a file, so the reader can download it. */
+  readonly dataBase64?: string;
+}
+
+/** One row in the user's list of sealed references. */
+export interface UiSealedSummary {
+  readonly reference: string;
+  readonly role: 'out' | 'in';
+  readonly isFile: boolean;
+  readonly size: number;
+  readonly createdAt: number;
+}
+
 /** Onboarding data shown exactly once. */
 export interface UiOnboarding {
   readonly totpSecretBase32: string;
@@ -125,8 +163,18 @@ export interface IpcContract {
 
   'settings:setLocale': [{ locale: Locale }, void];
   'settings:getLocale': [void, Locale];
-  'settings:setAutoLock': [{ minutes: number }, void];
+  'settings:setAutoLock': [{ seconds: number }, void];
   'settings:getAutoLock': [void, number];
+
+  // Sealed references.
+  'sealed:create': [
+    { text?: string; fileName?: string; mimeType?: string; dataBase64?: string },
+    UiSealedCreated,
+  ];
+  'sealed:open': [{ reference: string; passphrase: string }, UiSealedOpened];
+  'sealed:list': [void, readonly UiSealedSummary[]];
+  'sealed:forget': [{ reference: string }, { removed: boolean }];
+  'sealed:save': [{ reference: string; passphrase: string }, { path: string; fileName: string }];
 
   'app:version': [void, { version: string; electron: string; node: string }];
 }
@@ -158,6 +206,11 @@ export const IPC_CHANNELS: readonly IpcChannel[] = [
   'settings:getLocale',
   'settings:setAutoLock',
   'settings:getAutoLock',
+  'sealed:create',
+  'sealed:open',
+  'sealed:list',
+  'sealed:forget',
+  'sealed:save',
   'app:version',
 ];
 
@@ -228,8 +281,34 @@ export const IPC_VALIDATORS: Record<IpcChannel, Validator> = {
 
   'settings:setLocale': (v) => isObject(v) && (v['locale'] === 'en' || v['locale'] === 'fa' || v['locale'] === 'nl'),
   'settings:getLocale': () => true,
-  'settings:setAutoLock': (v) => isObject(v) && isFiniteInt(v['minutes']) && v['minutes'] >= 0 && v['minutes'] <= 1440,
+  'settings:setAutoLock': (v) =>
+    isObject(v) && isFiniteInt(v['seconds']) && v['seconds'] >= 30 && v['seconds'] <= 300,
   'settings:getAutoLock': () => true,
+
+  // Sealed references.
+  //
+  // `sealed:create` accepts either text or a file payload. The size is bounded in
+  // the service; here we only check shape and type, so a malformed call is refused
+  // before any allocation.
+  'sealed:create': (v) => {
+    if (!isObject(v)) return false;
+    const text = v['text'];
+    const fileName = v['fileName'];
+    const mimeType = v['mimeType'];
+    const dataBase64 = v['dataBase64'];
+    if (text !== undefined && !isString(text)) return false;
+    if (fileName !== undefined && !isString(fileName)) return false;
+    if (mimeType !== undefined && !isString(mimeType)) return false;
+    if (dataBase64 !== undefined && !isString(dataBase64)) return false;
+    // Exactly one of the two payload shapes.
+    return (text !== undefined && text.length > 0) !== (dataBase64 !== undefined && dataBase64.length > 0);
+  },
+  'sealed:open': (v) =>
+    isObject(v) && isString(v['reference']) && isString(v['passphrase']) && v['passphrase'].length <= 256,
+  'sealed:list': () => true,
+  'sealed:forget': (v) => isObject(v) && isString(v['reference']),
+  'sealed:save': (v) =>
+    isObject(v) && isString(v['reference']) && isString(v['passphrase']) && v['passphrase'].length <= 256,
 
   'app:version': () => true,
 };

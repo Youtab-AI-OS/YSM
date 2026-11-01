@@ -37,12 +37,22 @@ import {
 } from '../storage/messaging.js';
 import { hashRecoveryCode, base32Decode, verifyTotp } from '../crypto/auth.js';
 import { sanitizeFilename } from '../crypto/attachment.js';
+import {
+  seal as sealPayloadBlock,
+  open as openSealedBlock,
+  generatePassphrase,
+  looksLikeReference,
+} from '../crypto/seal.js';
+import { insertSealed, getSealed, listSealed, deleteSealed } from '../storage/sealed-store.js';
 import { LOCALES, type Locale } from '../i18n/strings.js';
 import type {
   UiAccountState,
   UiAttachment,
   UiContact,
   UiMessage,
+  UiSealedCreated,
+  UiSealedOpened,
+  UiSealedSummary,
   UiOnboarding,
   UiResult,
   UiRoom,
@@ -60,10 +70,25 @@ const EXPORT_DIRNAME = 'exports';
 /** Inline preview ceiling: previews are base64'd into the renderer, so bound them. */
 const MAX_PREVIEW_BYTES = 24 * 1024 * 1024;
 
+/** Auto-lock bounds, in seconds. See AppService.setAutoLock. */
+export const MIN_AUTOLOCK_SECONDS = 30;
+export const MAX_AUTOLOCK_SECONDS = 300;
+
+/**
+ * Sealed payload size limits.
+ *
+ * Argon2id is run over the passphrase, not the payload, so size is bounded by
+ * memory and IPC bandwidth rather than by cost. 25 MB keeps a single payload
+ * inside the renderer's base64 budget; larger files should be split or carried by
+ * the chunked attachment path instead.
+ */
+const MAX_SEALED_BYTES = 25 * 1024 * 1024;
+const MAX_SEALED_TEXT_BYTES = 256 * 1024;
+
 export class AppService {
   private vault: Vault | null = null;
   private locale: Locale = 'en';
-  private autoLockMinutes = 5;
+  private autoLockSeconds = 300;
   private lastActivity = 0;
   private readonly dataDir: string;
   private readonly now: () => number;
@@ -102,12 +127,12 @@ export class AppService {
   /** Lock if the idle timeout has elapsed. Called before each operation. */
   private enforceAutoLock(): void {
     if (this.vault === null || !this.vault.isUnlocked) return;
-    if (this.autoLockMinutes <= 0) return;
+    if (this.autoLockSeconds <= 0) return;
     if (this.lastActivity === 0) {
       this.lastActivity = this.now();
       return;
     }
-    if (this.now() - this.lastActivity > this.autoLockMinutes * 60_000) {
+    if (this.now() - this.lastActivity > this.autoLockSeconds * 1000) {
       this.vault.lock();
       this.vault = null;
     }
@@ -513,6 +538,173 @@ export class AppService {
   }
 
   // -------------------------------------------------------------------
+  // Sealed references ("Create crypto")
+  // -------------------------------------------------------------------
+
+  /**
+   * Seal a text message or a file and return the two strings the user shares.
+   *
+   * The passphrase is generated here, returned once, and never stored. If the
+   * user loses it before sending, the payload cannot be read again — including by
+   * them. The UI says so before and after.
+   */
+  sealPayload(input: {
+    text?: string;
+    fileName?: string;
+    mimeType?: string;
+    dataBase64?: string;
+  }): UiResult<UiSealedCreated> {
+    const guard = this.requireVault();
+    if (!guard.ok) return guard;
+    const vault = guard.vault;
+
+    // Exactly one of text or file.
+    const hasFile = typeof input.dataBase64 === 'string' && input.dataBase64.length > 0;
+    const hasText = typeof input.text === 'string' && input.text.length > 0;
+    if (hasFile === hasText) {
+      return err('BAD_INPUT', 'provide either text or a file, not both or neither');
+    }
+
+    let data: Uint8Array;
+    if (hasFile) {
+      try {
+        data = new Uint8Array(Buffer.from(input.dataBase64!, 'base64'));
+      } catch {
+        return err('BAD_INPUT', 'the file contents are not valid base64');
+      }
+      if (data.length === 0) return err('BAD_INPUT', 'the file is empty');
+      if (data.length > MAX_SEALED_BYTES) {
+        return err('TOO_LARGE', `files are limited to ${Math.floor(MAX_SEALED_BYTES / 1024 / 1024)} MB`);
+      }
+    } else {
+      data = new TextEncoder().encode(input.text!);
+      if (data.length > MAX_SEALED_TEXT_BYTES) {
+        return err('TOO_LARGE', `messages are limited to ${MAX_SEALED_TEXT_BYTES} bytes`);
+      }
+    }
+
+    const passphrase = generatePassphrase();
+    const sealed = sealPayloadBlock({
+      data,
+      passphrase,
+      isFile: hasFile,
+      ...(hasFile ? { fileName: sanitizeFilename(input.fileName ?? 'file') } : {}),
+      ...(hasFile ? { mimeType: input.mimeType ?? 'application/octet-stream' } : {}),
+    });
+    if (!sealed.ok) return err(sealed.code, sealed.message);
+
+    insertSealed(vault.database, {
+      reference: sealed.value.reference,
+      version: sealed.value.version,
+      argon: sealed.value.argon,
+      salt: sealed.value.salt,
+      nonce: sealed.value.nonce,
+      ciphertext: sealed.value.ciphertext,
+      role: 'out',
+      isFile: hasFile,
+      size: data.length,
+      now: this.now(),
+    });
+
+    return {
+      ok: true,
+      value: {
+        reference: sealed.value.reference,
+        passphrase,
+        isFile: hasFile,
+        fileName: hasFile ? sanitizeFilename(input.fileName ?? 'file') : undefined,
+        size: data.length,
+        createdAt: this.now(),
+      },
+    };
+  }
+
+  /**
+   * Open a sealed payload with a reference and a passphrase.
+   *
+   * The reference must already be in the local store. A reader who was sent a
+   * reference has already pasted it via `importReference`, which is what puts the
+   * ciphertext here — the reference alone is not enough, by design.
+   */
+  openSealed(input: { reference: string; passphrase: string }): UiResult<UiSealedOpened> {
+    const guard = this.requireVault();
+    if (!guard.ok) return guard;
+    const vault = guard.vault;
+
+    const reference = input.reference.trim();
+    if (!looksLikeReference(reference)) {
+      return err('BAD_REFERENCE', 'a reference looks like YSM_ followed by 64 hex characters');
+    }
+
+    const stored = getSealed(vault.database, reference);
+    if (stored === null) {
+      return err('NOT_FOUND', 'this reference is not in your store; paste the full reference block first');
+    }
+
+    const opened = openSealedBlock({ ...stored }, input.passphrase);
+    if (!opened.ok) {
+      if (opened.code === 'BAD_PASSPHRASE') {
+        return err('BAD_PASSPHRASE', 'wrong passphrase for this reference');
+      }
+      return err(opened.code, opened.message);
+    }
+
+    const isFile = opened.fileName !== undefined || opened.mimeType !== undefined;
+    return {
+      ok: true,
+      value: {
+        reference,
+        isFile,
+        text: isFile ? undefined : new TextDecoder().decode(opened.data),
+        fileName: opened.fileName,
+        mimeType: opened.mimeType,
+        size: opened.data.length,
+        dataBase64: isFile ? Buffer.from(opened.data).toString('base64') : undefined,
+      },
+    };
+  }
+
+  /** Every sealed reference in the local store, newest first. */
+  sealedItems(): UiResult<readonly UiSealedSummary[]> {
+    const guard = this.requireVault();
+    if (!guard.ok) return guard;
+    return {
+      ok: true,
+      value: listSealed(guard.vault.database).map((s) => ({
+        reference: s.reference,
+        role: s.role,
+        isFile: s.isFile,
+        size: s.size,
+        createdAt: s.createdAt,
+      })),
+    };
+  }
+
+  /** Forget a sealed payload. Irreversible. */
+  forgetSealed(reference: string): UiResult<{ removed: boolean }> {
+    const guard = this.requireVault();
+    if (!guard.ok) return guard;
+    const removed = deleteSealed(guard.vault.database, reference.trim());
+    return { ok: true, value: { removed } };
+  }
+
+  /**
+   * Write a decrypted file to the export directory, keeping its original name and
+   * extension so the reader can open it in the right application.
+   */
+  saveSealed(reference: string, passphrase: string): UiResult<{ path: string; fileName: string }> {
+    const opened = this.openSealed({ reference, passphrase });
+    if (!opened.ok) return opened;
+    if (!opened.value.isFile || opened.value.dataBase64 === undefined) {
+      return err('BAD_INPUT', 'this reference holds text, not a file');
+    }
+    const safeName = sanitizeFilename(opened.value.fileName ?? 'file');
+    const path = join(this.exportDir, safeName);
+    writeFileSync(path, Buffer.from(opened.value.dataBase64, 'base64'), { mode: 0o600 });
+    return { ok: true, value: { path, fileName: safeName } };
+  }
+
+  // -------------------------------------------------------------------
   // Settings
   // -------------------------------------------------------------------
 
@@ -525,12 +717,28 @@ export class AppService {
     return this.locale;
   }
 
-  setAutoLock(minutes: number): void {
-    this.autoLockMinutes = Math.max(0, Math.min(1440, Math.floor(minutes)));
+  /**
+   * Auto-lock delay, in seconds.
+   *
+   * Bounded to 30–300 s. The lower bound keeps the window short enough that
+   * walking away from the machine is not an immediate compromise; the upper bound
+   * stops a user (or a tampered settings file) from disabling the lock in
+   * practice. 0 is not accepted: an unlocked vault with no timeout is the state
+   * this setting exists to prevent.
+   */
+  setAutoLock(seconds: number): void {
+    const whole = Math.floor(seconds);
+    if (!Number.isFinite(whole) || whole < MIN_AUTOLOCK_SECONDS || whole > MAX_AUTOLOCK_SECONDS) {
+      throw new ServiceError(
+        'BAD_AUTOLOCK',
+        `auto-lock must be between ${MIN_AUTOLOCK_SECONDS} and ${MAX_AUTOLOCK_SECONDS} seconds`,
+      );
+    }
+    this.autoLockSeconds = whole;
   }
 
   getAutoLock(): number {
-    return this.autoLockMinutes;
+    return this.autoLockSeconds;
   }
 }
 

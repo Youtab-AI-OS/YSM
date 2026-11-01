@@ -33,15 +33,15 @@ let fail = 0;
 const failures = [];
 
 /**
- * One-line, length-capped rendering of anything that might reach a log.
+ * Opt-in verbose diagnostics, for local debugging only.
  *
- * Test detail strings can carry a code, a password or a decrypted value, and a
- * failure log is the last place any of that should be reproducible in full. This
- * keeps diagnostics useful without echoing secrets.
+ * Failure detail can contain a decrypted payload or a code, so it is never
+ * printed by default and never printed in CI. Set YSM_TEST_VERBOSE=1 when
+ * chasing a specific failure; that output is for your terminal, not a log.
  */
-function sanitise(value) {
-  const text = value instanceof Error ? `${value.name}: ${value.message}` : String(value);
-  return text.replace(/\s+/g, ' ').slice(0, 160);
+const VERBOSE = process.env['YSM_TEST_VERBOSE'] === '1';
+function debug(value) {
+  if (VERBOSE) console.log(`    [debug] ${String(value).replace(/\s+/g, ' ').slice(0, 200)}`);
 }
 
 function check(name, cond, detail = '') {
@@ -50,9 +50,14 @@ function check(name, cond, detail = '') {
     console.log(`  PASS ${name}`);
   } else {
     fail++;
-    const shown = detail === '' ? '' : sanitise(detail);
-    failures.push(`${name}${shown ? ` — ${shown}` : ''}`);
-    console.log(`  FAIL ${name} ${shown}`);
+    // Failure detail stays in the summary line as a short category, never the raw
+    // value: callers pass decrypted payloads and codes here. The full value is
+    // available by re-running the single case, which is what a developer does
+    // anyway.
+    const hint = detail === '' ? '' : ' (detail withheld: may contain test secrets)';
+    failures.push(`${name}${hint}`);
+    console.log(`  FAIL ${name}${hint}`);
+    debug(`${name} — ${detail}`);
   }
 }
 
@@ -618,9 +623,15 @@ try {
   }
   check('no repeated ciphertext blocks across 10KB of identical plaintext', repeats === 0, `${repeats} repeats`);
 } catch (error) {
-  console.error('\nUNEXPECTED ERROR:', sanitise(error));
+  // Deliberately not logging `error.message`: a failure raised inside the vault
+  // can embed the input that caused it, and the whole point of this suite is that
+  // those inputs include passwords and codes. The error class and stack frame are
+  // enough to locate the fault.
+  const where = error instanceof Error ? (error.stack ?? '').split('\n')[1]?.trim() ?? 'unknown' : 'non-Error thrown';
+  console.error(`\nUNEXPECTED ERROR: ${error?.name ?? 'Error'}`);
+  console.error(`  at ${where}`);
   fail++;
-  failures.push(`suite crashed: ${sanitise(error)}`);
+  failures.push(`suite crashed: ${error?.name ?? 'Error'}`);
 } finally {
   for (const d of dirs) {
     try {

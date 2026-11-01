@@ -174,10 +174,26 @@ try {
   console.log('=== settings ===');
   bob.svc.setLocale('fa');
   check('locale set', bob.svc.getLocale() === 'fa');
-  bob.svc.setAutoLock(10);
-  check('autolock set', bob.svc.getAutoLock() === 10);
-  bob.svc.setAutoLock(99999);
-  check('autolock clamped', bob.svc.getAutoLock() === 1440);
+  // Auto-lock is in seconds and strictly bounded to 30..300. Out-of-range values
+  // are refused rather than clamped: silently substituting a different timeout
+  // would leave the user believing a protection is in force when it is not.
+  bob.svc.setAutoLock(45);
+  check('autolock set', bob.svc.getAutoLock() === 45);
+  let refusedLow = false;
+  try {
+    bob.svc.setAutoLock(10);
+  } catch (e) {
+    refusedLow = e.code === 'BAD_AUTOLOCK';
+  }
+  check('autolock below 30s is refused', refusedLow);
+  let refusedHigh = false;
+  try {
+    bob.svc.setAutoLock(99999);
+  } catch (e) {
+    refusedHigh = e.code === 'BAD_AUTOLOCK';
+  }
+  check('autolock above 300s is refused', refusedHigh);
+  check('the previous value is kept after a refusal', bob.svc.getAutoLock() === 45);
 
   alice.svc.lock();
   bob.svc.lock();
