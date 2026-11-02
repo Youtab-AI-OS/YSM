@@ -42,6 +42,11 @@ import {
   open as openSealedBlock,
   generatePassphrase,
   looksLikeReference,
+  packTransfer,
+  unpackTransfer,
+  packFile,
+  type SealedBlob,
+  unpackFile,
 } from '../crypto/seal.js';
 import { insertSealed, getSealed, listSealed, deleteSealed } from '../storage/sealed-store.js';
 import { LOCALES, type Locale } from '../i18n/strings.js';
@@ -611,6 +616,9 @@ export class AppService {
       value: {
         reference: sealed.value.reference,
         passphrase,
+        // The transfer string is what the sender actually sends: it carries the
+        // ciphertext, so the reader needs nothing but this and the passphrase.
+        transfer: packTransfer(sealed.value),
         isFile: hasFile,
         fileName: hasFile ? sanitizeFilename(input.fileName ?? 'file') : undefined,
         size: data.length,
@@ -626,25 +634,65 @@ export class AppService {
    * reference has already pasted it via `importReference`, which is what puts the
    * ciphertext here — the reference alone is not enough, by design.
    */
-  openSealed(input: { reference: string; passphrase: string }): UiResult<UiSealedOpened> {
+  openSealed(input: { reference: string; passphrase: string; transfer?: string }): UiResult<UiSealedOpened> {
     const guard = this.requireVault();
     if (!guard.ok) return guard;
     const vault = guard.vault;
 
-    const reference = input.reference.trim();
-    if (!looksLikeReference(reference)) {
-      return err('BAD_REFERENCE', 'a reference looks like YSM_ followed by 64 hex characters');
+    // The passphrase is required either way; reject early so an empty submission
+    // does not cost a second of Argon2.
+    if (typeof input.passphrase !== 'string' || input.passphrase.length === 0) {
+      return err('BAD_PASSPHRASE', 'enter the passphrase that came with this message');
     }
 
-    const stored = getSealed(vault.database, reference);
-    if (stored === null) {
-      return err('NOT_FOUND', 'this reference is not in your store; paste the full reference block first');
+    // A transfer string carries the ciphertext, so a reader with only that string
+    // can open the message on a machine that has never seen it. A bare reference
+    // can only be opened if this machine stored the payload earlier.
+    let stored: SealedBlob | null = null;
+    let sourceReference = '';
+
+    if (typeof input.transfer === 'string' && input.transfer.trim().length > 0) {
+      const unpacked = unpackTransfer(input.transfer);
+      if (!unpacked.ok) return err(unpacked.code, unpacked.message);
+      stored = unpacked.blob;
+      sourceReference = unpacked.blob.reference;
+
+      // Keep the imported payload locally so the reader can reopen it later
+      // without pasting the whole string again.
+      const already = getSealed(vault.database, sourceReference);
+      if (already === null) {
+        insertSealed(vault.database, {
+          reference: sourceReference,
+          version: stored.version,
+          argon: stored.argon,
+          salt: stored.salt,
+          nonce: stored.nonce,
+          ciphertext: stored.ciphertext,
+          role: 'in',
+          isFile: false,
+          size: stored.ciphertext.length,
+          now: this.now(),
+        });
+      }
+    } else {
+      const reference = input.reference.trim();
+      if (!looksLikeReference(reference)) {
+        return err('BAD_REFERENCE', 'a reference looks like YSM_ followed by 64 hex characters');
+      }
+      stored = getSealed(vault.database, reference);
+      sourceReference = reference;
+      if (stored === null) {
+        return err(
+          'NO_PAYLOAD',
+          'this machine has no copy of that message. Paste the full transfer text (it starts with YSMT1.) or open the .ysm file that came with it.',
+        );
+      }
     }
 
     const opened = openSealedBlock({ ...stored }, input.passphrase);
     if (!opened.ok) {
       if (opened.code === 'BAD_PASSPHRASE') {
-        return err('BAD_PASSPHRASE', 'wrong passphrase for this reference');
+        return err('BAD_PASSPHRASE', 'wrong passphrase for this message');
       }
       return err(opened.code, opened.message);
     }
@@ -653,7 +701,7 @@ export class AppService {
     return {
       ok: true,
       value: {
-        reference,
+        reference: sourceReference,
         isFile,
         text: isFile ? undefined : new TextDecoder().decode(opened.data),
         fileName: opened.fileName,

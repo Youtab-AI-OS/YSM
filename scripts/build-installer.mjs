@@ -45,17 +45,40 @@ function findIscc() {
   return null;
 }
 
-function run(label, command, args, cwd = root) {
+function run(label, command, args, cwd = root, useShell = false) {
   console.log(`\n=== ${label} ===`);
-  const result = spawnSync(command, args, { cwd, stdio: 'inherit', shell: false });
+  const result = spawnSync(command, args, { cwd, stdio: 'inherit', shell: useShell });
   if (result.status !== 0) {
-    console.error(`\n${label} failed with exit code ${result.status}`);
+    // A null status means the process could not be started at all (missing binary
+    // or a command only runnable through a shell), which is worth saying plainly
+    // rather than reporting as a generic failure.
+    const reason = result.status === null ? `could not start ${command}${result.error ? `: ${result.error.message}` : ''}` : `exit code ${result.status}`;
+    console.error(`\n${label} failed — ${reason}`);
     process.exit(result.status ?? 1);
   }
 }
 
 // 1. Build
-run('build (i18n, icons, TypeScript)', process.execPath, ['node_modules/npm/bin/npm-cli.js', 'run', 'build']);
+// Use the npm that shipped with the Node running this script, found through
+// npm's own resolution rather than a hard-coded path inside node_modules (which
+// is absent when dependencies are installed by a manager that does not nest npm).
+const npmCli = (() => {
+  const candidates = [
+    join(dirname(process.execPath), 'node_modules', 'npm', 'bin', 'npm-cli.js'),
+    join(dirname(process.execPath), '..', 'lib', 'node_modules', 'npm', 'bin', 'npm-cli.js'),
+  ];
+  for (const c of candidates) if (existsSync(c)) return c;
+  // Fall back to letting npm resolve itself from PATH.
+  return null;
+})();
+
+if (npmCli === null) {
+  // On Windows npm is a .cmd shim, so it must be run through a shell; spawn with
+  // shell:false rejects it (EINVAL).
+  run('build (i18n, icons, TypeScript)', 'npm run build', [], root, true);
+} else {
+  run('build (i18n, icons, TypeScript)', process.execPath, [npmCli, 'run', 'build']);
+}
 
 // 2. Package
 run('package (electron-builder)', process.execPath, ['node_modules/electron-builder/cli.js', '--win', '--x64', '--dir']);

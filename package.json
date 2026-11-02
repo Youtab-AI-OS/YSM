@@ -24,10 +24,11 @@
     "test:ui": "npm run build && electron scripts/test-responsive.cjs && electron scripts/capture-screenshots.cjs",
     "test:tools": "node scripts/test-qr-decode.cjs && node scripts/test-urlguard.cjs",
     "test:lib": "npm run build:crypto && node --test test/*.test.mjs",
-    "test": "npm run test:tools && npm run test:lib && npm run test:unit && npm run test:sealed && npm run test:security && npm run test:electron && npm run test:ui",
+    "test": "npm run test:tools && npm run test:lib && npm run test:unit && npm run test:sealed && npm run test:cross-machine && npm run test:security && npm run test:electron && npm run test:ui",
     "dist": "node scripts/build-installer.mjs",
     "test:security": "npm run build && node scripts/test-adversarial.mjs",
-    "test:sealed": "npm run build && node scripts/test-seal.mjs && node scripts/test-sealed-service.mjs"
+    "test:sealed": "npm run build && node scripts/test-seal.mjs && node scripts/test-sealed-service.mjs",
+    "test:cross-machine": "npm run build && node scripts/test-cross-machine.mjs"
   },
   "dependencies": {
     "@noble/ciphers": "^2.0.1",

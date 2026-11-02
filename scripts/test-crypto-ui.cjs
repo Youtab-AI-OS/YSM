@@ -94,6 +94,7 @@ app.whenReady().then(async () => {
 
   const result = await js(`(() => ({
     hidden: document.getElementById('crypto-result').hidden,
+    transfer: document.getElementById('crypto-transfer-out').value,
     reference: document.getElementById('crypto-ref-out').value,
     passphrase: document.getElementById('crypto-pass-out').value,
     textCleared: document.getElementById('crypto-text').value === '',
@@ -102,6 +103,7 @@ app.whenReady().then(async () => {
   }))()`);
 
   check('the result panel appears', result.hidden === false, result.error);
+  check('a transfer string is shown', result.transfer.startsWith('YSMT1.'), result.transfer.slice(0, 14));
   check('a reference is shown', /^YSM_[0-9a-f]{64}$/.test(result.reference), result.reference.slice(0, 20));
   check('a passphrase is shown', result.passphrase.length === 32, `${result.passphrase.length} chars`);
   check('the reference and passphrase differ', result.reference !== result.passphrase);
@@ -109,12 +111,13 @@ app.whenReady().then(async () => {
   check('no error is shown', result.errorHidden === true, result.error);
 
   const reference = result.reference;
+  const transfer = result.transfer;
   const passphrase = result.passphrase;
 
-  console.log('\n=== 4. reader pastes reference + passphrase and sees the original ===');
+  console.log('\n=== 4. reader pastes the message text + passphrase and sees the original ===');
   await js(`(() => {
     document.getElementById('crypto-tab-read').click();
-    document.getElementById('read-reference').value = ${JSON.stringify(reference)};
+    document.getElementById('read-reference').value = ${JSON.stringify(transfer)};
     document.getElementById('read-passphrase').value = ${JSON.stringify(passphrase)};
     document.getElementById('read-open').click();
   })()`);
@@ -136,7 +139,7 @@ app.whenReady().then(async () => {
 
   console.log('\n=== wrong passphrase is refused in the UI ===');
   await js(`(() => {
-    document.getElementById('read-reference').value = ${JSON.stringify(reference)};
+    document.getElementById('read-reference').value = ${JSON.stringify(transfer)};
     document.getElementById('read-passphrase').value = 'THISISNOTTHEPASSPHRASE';
     document.getElementById('read-open').click();
   })()`);
@@ -161,7 +164,7 @@ app.whenReady().then(async () => {
 
   if (sealedFile.ok) {
     await js(`(() => {
-      document.getElementById('read-reference').value = ${JSON.stringify(sealedFile.value.reference)};
+      document.getElementById('read-reference').value = ${JSON.stringify(sealedFile.value.transfer)};
       document.getElementById('read-passphrase').value = ${JSON.stringify(sealedFile.value.passphrase)};
       document.getElementById('read-open').click();
     })()`);

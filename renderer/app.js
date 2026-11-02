@@ -1075,6 +1075,7 @@ function clearCryptoCompose() {
   $('crypto-clear-file').hidden = true;
   $('crypto-file-input').value = '';
   $('crypto-result').hidden = true;
+  $('crypto-transfer-out').value = '';
   $('crypto-ref-out').value = '';
   $('crypto-pass-out').value = '';
   setError('crypto-write-error', '');
@@ -1205,6 +1206,7 @@ function wireCrypto() {
       const result = await call('sealed:create', payload);
       cryptoState.lastResult = result;
 
+      $('crypto-transfer-out').value = result.transfer;
       $('crypto-ref-out').value = result.reference;
       $('crypto-pass-out').value = result.passphrase;
       $('crypto-result').hidden = false;
@@ -1233,31 +1235,21 @@ function wireCrypto() {
     copyToClipboard($('crypto-pass-out').value, e.currentTarget);
   });
 
-  $('crypto-save-block').addEventListener('click', () => {
+  $('crypto-copy-transfer').addEventListener('click', (e) => {
+    copyToClipboard($('crypto-transfer-out').value, e.currentTarget);
+  });
+
+  $('crypto-save-file').addEventListener('click', () => {
     const result = cryptoState.lastResult;
     if (!result) return;
-    // A small text file holding both strings, for the user who wants to keep them
-    // together until they send them. It is plain text and contains the passphrase,
-    // so the UI warns before this button.
-    const body = [
-      'YSM sealed reference',
-      '',
-      `Reference:  ${result.reference}`,
-      `Passphrase: ${result.passphrase}`,
-      '',
-      `Created:    ${new Date(result.createdAt).toISOString()}`,
-      `Type:       ${result.isFile ? 'file' : 'text'}`,
-      ...(result.fileName ? [`File name:  ${result.fileName}`] : []),
-      `Size:       ${result.size} bytes`,
-      '',
-      'Send the reference and the passphrase through different channels.',
-      'Anyone who has both can read the content.',
-    ].join('\n');
-    const blob = new Blob([body], { type: 'text/plain' });
+    // A .ysm file holds the same transfer string, so the reader can open it
+    // without copying thousands of characters by hand. It does NOT contain the
+    // passphrase, so the file alone is useless to anyone who intercepts it.
+    const blob = new Blob([result.transfer], { type: 'application/octet-stream' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
-    link.download = `ysm-${result.reference.slice(4, 16)}.txt`;
+    link.download = `ysm-${result.reference.slice(4, 16)}.ysm`;
     document.body.appendChild(link);
     link.click();
     link.remove();
@@ -1277,12 +1269,19 @@ function wireCrypto() {
     button.textContent = '…';
     try {
       setError('read-error', '');
-      const reference = $('read-reference').value.trim();
+      // The visible field accepts either a full transfer string (usual) or a bare
+      // reference, which only works if this machine already has the payload.
+      const pasted = $('read-reference').value.trim();
       const passphrase = $('read-passphrase').value.trim();
-      if (reference.length === 0) throw new AppError('BAD_REFERENCE', 'paste a reference first');
+      if (pasted.length === 0) throw new AppError('BAD_REFERENCE', 'paste the message text first');
       if (passphrase.length === 0) throw new AppError('BAD_PASSPHRASE', 'type the passphrase');
 
-      const opened = await call('sealed:open', { reference, passphrase });
+      const isTransfer = pasted.startsWith('YSMT1.');
+      const opened = await call('sealed:open', {
+        reference: isTransfer ? '' : pasted,
+        passphrase,
+        ...(isTransfer ? { transfer: pasted } : {}),
+      });
 
       $('read-output').hidden = false;
 

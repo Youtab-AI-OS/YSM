@@ -74,11 +74,19 @@ try {
   const ref = sealed.value.reference;
   const phrase = sealed.value.passphrase;
 
-  console.log('\n=== 2. the reference alone does not open it ===');
-  // The reader has only the reference: it is not in their store yet.
+  console.log('\n=== 2. a bare reference does not open without the payload ===');
+  // A reference is only a digest. Without a stored copy or a transfer string there
+  // is nothing to decrypt, and the reader has to be told that clearly rather than
+  // shown a generic failure.
   const readerNoRef = reader.openSealed({ reference: ref, passphrase: phrase });
   check('reader cannot open a reference they do not hold', readerNoRef.ok === false);
-  check('the failure is NOT_FOUND', readerNoRef.code === 'NOT_FOUND');
+  check('the failure is NO_PAYLOAD', readerNoRef.code === 'NO_PAYLOAD', readerNoRef.code);
+  check('the message tells them to paste the transfer text', /YSMT1|transfer/i.test(readerNoRef.message || ''), readerNoRef.message);
+
+  console.log('\n=== 2b. the transfer string does open it, on a reader with no copy ===');
+  const viaTransfer = reader.openSealed({ reference: ref, passphrase: phrase, transfer: sealed.value.transfer });
+  check('reader opens it with the transfer string', viaTransfer.ok === true, JSON.stringify(viaTransfer).slice(0, 100));
+  check("the text matches", viaTransfer.ok && viaTransfer.value.text === secretText);
   // The author, who does hold it, still needs the passphrase.
   const authorWrong = author.openSealed({ reference: ref, passphrase: 'WRONGPASSPHRASE' });
   check('author with wrong passphrase is refused', authorWrong.ok === false);

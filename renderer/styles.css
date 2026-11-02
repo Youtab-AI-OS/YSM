@@ -528,6 +528,13 @@ textarea { resize: vertical; }
   border-radius: var(--radius);
   background: var(--bg-elev-2);
   word-break: break-word;
+  /* Mixed-direction content: resolve each paragraph from its first strong
+     character, so a Persian message reads right-to-left and a Latin one
+     left-to-right within the same interface. `plaintext` keeps the logical order
+     of the string intact while still allowing visually ordered runs such as a
+     file name or URL inside a Persian sentence. */
+  unicode-bidi: plaintext;
+  text-align: start;
   white-space: pre-wrap;
   align-self: flex-start;
 }
@@ -593,6 +600,92 @@ textarea { resize: vertical; }
    scrolls. */
 #panel-conversation {
   min-height: 0;
+}
+
+/* ---------------------------------------------------------------- crypto */
+
+.crypto-modes {
+  display: flex;
+  gap: 0.4rem;
+  margin-bottom: 0.75rem;
+  background: var(--bg-elev-1);
+  padding: 0.25rem;
+  border-radius: var(--radius);
+}
+
+.seg {
+  flex: 1;
+  min-height: var(--tap);
+  border: none;
+  border-radius: calc(var(--radius) - 2px);
+  background: transparent;
+  color: var(--text-dim);
+  font: inherit;
+  cursor: pointer;
+}
+
+.seg.active {
+  background: var(--bg-elev-2);
+  color: var(--text);
+  font-weight: 600;
+}
+
+.crypto-pane { display: none; }
+.crypto-pane.active { display: block; }
+
+.crypto-attach-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  margin: 0.5rem 0;
+}
+
+.copy-row {
+  display: flex;
+  gap: 0.5rem;
+  align-items: flex-start;
+  margin-bottom: 0.75rem;
+}
+
+.copy-row input,
+.copy-row textarea { flex: 1 1 auto; min-width: 0; }
+
+.warn {
+  color: var(--warning, #e0a33a);
+  font-size: 0.82rem;
+  line-height: 1.5;
+  margin: 0.5rem 0 0.85rem;
+}
+
+/* Decrypted content. `unicode-bidi: plaintext` so a Persian message reads
+   right-to-left and a Latin one left-to-right, decided per paragraph by its first
+   strong character — the same rule the chat bubbles use. */
+.read-text {
+  margin: 0 0 0.75rem;
+  padding: 0.75rem;
+  background: var(--bg-elev-2);
+  border-radius: var(--radius);
+  white-space: pre-wrap;
+  word-break: break-word;
+  unicode-bidi: plaintext;
+  text-align: start;
+  max-height: 45vh;
+  overflow: auto;
+  font-family: inherit;
+}
+
+/* Reference and passphrase fields are ASCII and must stay left-aligned even when
+   the interface is right-to-left: a left-aligned monospace string is far easier to
+   compare and copy than a mirrored one. */
+.copy-row input.mono,
+#read-reference,
+#read-passphrase {
+  direction: ltr;
+  text-align: left;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.82rem;
+  letter-spacing: 0.02em;
 }
 
 /* ---------------------------------------------------------------- modals */

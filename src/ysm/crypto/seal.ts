@@ -181,6 +181,201 @@ export function looksLikeReference(text: string): boolean {
   return new RegExp(`^${REF_PREFIX}[0-9a-fA-F]{${REF_HEX_LENGTH}}$`).test(text.trim());
 }
 
+// ---------------------------------------------------------------------------
+// Transfer strings
+//
+// A reference is only a digest: `YSM_` + SHA-256 of the encrypted parts. It
+// identifies a payload but carries none of it, so a reader who has only the
+// reference cannot decrypt anything — the ciphertext must arrive some other way.
+//
+// A transfer string carries the whole payload in one line of text, so the sender
+// can paste it into any channel and the reader needs nothing else but the
+// passphrase. Format:
+//
+//   YSMT1.<base64url(version | argon t,m,p | salt | nonce | ciphertext | tag)>
+//
+// The reference is included in the header so the reader can display which payload
+// they opened, and so a truncated paste is detected rather than silently
+// producing garbage.
+// ---------------------------------------------------------------------------
+
+/** Prefix identifying a transfer string, distinct from a reference. */
+export const TRANSFER_PREFIX = 'YSMT1.';
+
+/** Bytes appended so a truncated transfer string fails cleanly. */
+const TRANSFER_TAG_BYTES = 8;
+
+/** Encode bytes as unpadded base64url. */
+function toBase64Url(bytes: Uint8Array): string {
+  let binary = '';
+  for (let i = 0; i < bytes.length; i++) {
+    const byte = bytes[i] ?? 0;
+    binary += String.fromCharCode(byte);
+  }
+  return btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+}
+
+/** Decode unpadded base64url. Throws on invalid input. */
+function fromBase64Url(text: string): Uint8Array {
+  const padded = text.replace(/-/g, '+').replace(/_/g, '/');
+  const binary = atob(padded + '='.repeat((4 - (padded.length % 4)) % 4));
+  const out = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) out[i] = binary.charCodeAt(i);
+  return out;
+}
+
+/**
+ * Pack a sealed blob into a single transferable line.
+ *
+ * Layout (all big-endian, fixed width so parsing cannot be ambiguous):
+ *   1  version
+ *   1  argon.t        1 argon.m (in 64 MiB units)   1 argon.p
+ *   32 salt
+ *   12 nonce
+ *   4  ciphertext length
+ *   N  ciphertext
+ *   8  SHA-256(salt||nonce||ciphertext) prefix
+ */
+export function packTransfer(blob: SealedBlob): string {
+  // version | argon t,m,p | salt | nonce | ciphertext length
+  const HEADER = 4 + 32 + 12 + 4;
+  const header = new Uint8Array(HEADER);
+  header[0] = blob.version;
+  header[1] = blob.argon.t;
+  header[2] = Math.round(blob.argon.m / 65536);
+  header[3] = blob.argon.p;
+  header.set(blob.salt, 4);
+  header.set(blob.nonce, 4 + 32);
+
+  const length = blob.ciphertext.length;
+  new DataView(header.buffer).setUint32(4 + 32 + 12, length, false);
+
+  const digest = sha256(
+    new Uint8Array([...blob.salt, ...blob.nonce, ...blob.ciphertext]),
+  ).slice(0, TRANSFER_TAG_BYTES);
+
+  const all = new Uint8Array(header.length + length + TRANSFER_TAG_BYTES);
+  all.set(header, 0);
+  all.set(blob.ciphertext, header.length);
+  all.set(digest, header.length + length);
+
+  return TRANSFER_PREFIX + toBase64Url(all);
+}
+
+/** Is this string shaped like a transfer string? Does not verify the contents. */
+export function looksLikeTransfer(text: string): boolean {
+  const trimmed = text.trim();
+  return trimmed.startsWith(TRANSFER_PREFIX) && trimmed.length > TRANSFER_PREFIX.length + 40;
+}
+
+export type UnpackResult =
+  | { ok: true; blob: SealedBlob }
+  | { ok: false; code: 'BAD_TRANSFER' | 'TRUNCATED' | 'UNSUPPORTED_VERSION'; message: string };
+
+/** Unpack a transfer string back into a sealed blob. */
+export function unpackTransfer(text: string): UnpackResult {
+  const trimmed = text.trim().replace(/\s+/g, '');
+  if (!trimmed.startsWith(TRANSFER_PREFIX)) {
+    return { ok: false, code: 'BAD_TRANSFER', message: 'this does not start with YSMT1.' };
+  }
+
+  let raw: Uint8Array;
+  try {
+    raw = fromBase64Url(trimmed.slice(TRANSFER_PREFIX.length));
+  } catch {
+    return {
+      ok: false,
+      code: 'BAD_TRANSFER',
+      message: 'the transfer text is damaged or was cut short while copying',
+    };
+  }
+
+  const MIN_LENGTH = 4 + 32 + 12 + 4 + 1 + TRANSFER_TAG_BYTES;
+  if (raw.length < MIN_LENGTH) {
+    return { ok: false, code: 'TRUNCATED', message: 'the transfer text is incomplete' };
+  }
+
+  const version = raw[0] ?? 0;
+  if (version !== SEAL_VERSION) {
+    return {
+      ok: false,
+      code: 'UNSUPPORTED_VERSION',
+      message: `this message uses format version ${version}; this build understands ${SEAL_VERSION}`,
+    };
+  }
+
+  const argon = {
+    t: raw[1] ?? SEAL_ARGON.t,
+    m: (raw[2] ?? 64) * 65536,
+    p: raw[3] ?? 1,
+  };
+  const salt = raw.slice(4, 4 + 32);
+  const nonce = raw.slice(4 + 32, 4 + 32 + 12);
+  // Layout offsets: version 0, argon 1..3, salt 4..35, nonce 36..47,
+  // length 48..51, ciphertext from 52.
+  const HEADER = 52;
+  const length = new DataView(raw.buffer, raw.byteOffset).getUint32(48, false);
+
+  if (raw.length !== HEADER + length + TRANSFER_TAG_BYTES) {
+    return {
+      ok: false,
+      code: 'TRUNCATED',
+      message: 'the transfer text is incomplete — ask for it again in full',
+    };
+  }
+
+  const ciphertext = raw.slice(HEADER, HEADER + length);
+  const tag = raw.slice(HEADER + length);
+
+  // Verify the digest before spending a second of Argon2 on it.
+  const expected = sha256(new Uint8Array([...salt, ...nonce, ...ciphertext])).slice(0, TRANSFER_TAG_BYTES);
+  let tagOk = tag.length === expected.length;
+  if (tagOk) {
+    for (let i = 0; i < expected.length; i++) {
+      if (tag[i] !== expected[i]) {
+        tagOk = false;
+        break;
+      }
+    }
+  }
+  if (!tagOk) {
+    return {
+      ok: false,
+      code: 'BAD_TRANSFER',
+      message: 'the transfer text was altered or copied incompletely',
+    };
+  }
+
+  return {
+    ok: true,
+    blob: { reference: computeReference(salt, nonce, ciphertext), version, argon, salt, nonce, ciphertext },
+  };
+}
+
+/**
+ * Serialise a sealed blob as a `.ysm` file.
+ *
+ * The file is the same bytes as a transfer string, so the two representations
+ * cannot drift: the transfer text is just this, base64url-encoded with a prefix.
+ * A magic number and version come first so the file is identifiable.
+ */
+export function packFile(blob: SealedBlob): Uint8Array {
+  const transfer = packTransfer(blob);
+  return new TextEncoder().encode(transfer);
+}
+
+/** Read a `.ysm` file back into a sealed blob. */
+export function unpackFile(bytes: Uint8Array): UnpackResult {
+  let text: string;
+  try {
+    text = new TextDecoder('utf-8', { fatal: true }).decode(bytes);
+  } catch {
+    return { ok: false, code: 'BAD_TRANSFER', message: 'this is not a YSM message file' };
+  }
+  return unpackTransfer(text);
+}
+
+
 /**
  * Generate a fresh passphrase.
  *

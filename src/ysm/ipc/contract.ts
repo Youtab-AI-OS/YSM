@@ -76,14 +76,20 @@ export type UiResult<T> =
   | { ok: true; value: T }
   | { ok: false; code: string; message: string };
 
-/** A freshly sealed payload: the two strings the user shares. */
+/**
+ * A freshly sealed payload, as returned to the sender.
+ *
+ * `transfer` is the string the sender actually sends. `reference` identifies the
+ * payload but carries none of it, so it is not enough on its own; the transfer
+ * string holds the ciphertext.
+ */
 export interface UiSealedCreated {
-  /** `YSM_` + 64 hex characters. Safe to send over any channel. */
   readonly reference: string;
+  readonly transfer: string;
   /**
    * The one-time passphrase. Shown once and never stored.
    *
-   * Send this over a *different* channel from the reference, so a party who
+   * Send this over a *different* channel from the transfer string, so a party who
    * captures one does not have both.
    */
   readonly passphrase: string;
@@ -171,7 +177,7 @@ export interface IpcContract {
     { text?: string; fileName?: string; mimeType?: string; dataBase64?: string },
     UiSealedCreated,
   ];
-  'sealed:open': [{ reference: string; passphrase: string }, UiSealedOpened];
+  'sealed:open': [{ reference: string; passphrase: string; transfer?: string }, UiSealedOpened],
   'sealed:list': [void, readonly UiSealedSummary[]];
   'sealed:forget': [{ reference: string }, { removed: boolean }];
   'sealed:save': [{ reference: string; passphrase: string }, { path: string; fileName: string }];
@@ -304,7 +310,15 @@ export const IPC_VALIDATORS: Record<IpcChannel, Validator> = {
     return (text !== undefined && text.length > 0) !== (dataBase64 !== undefined && dataBase64.length > 0);
   },
   'sealed:open': (v) =>
-    isObject(v) && isString(v['reference']) && isString(v['passphrase']) && v['passphrase'].length <= 256,
+    isObject(v) &&
+    isString(v['reference']) &&
+    isString(v['passphrase']) &&
+    v['passphrase'].length > 0 &&
+    v['passphrase'].length <= 256 &&
+    // A transfer string carries the ciphertext; it is long but bounded, so a
+    // pathological paste cannot force an unbounded allocation.
+    (v['transfer'] === undefined ||
+      (isString(v['transfer']) && v['transfer'].length <= 64 * 1024 * 1024)),
   'sealed:list': () => true,
   'sealed:forget': (v) => isObject(v) && isString(v['reference']),
   'sealed:save': (v) =>

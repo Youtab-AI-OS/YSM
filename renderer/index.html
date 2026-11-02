@@ -193,18 +193,26 @@
               <button class="btn btn-primary full" id="crypto-create" data-i18n="crypto.create"></button>
             </div>
 
-            <!-- Result: the two strings -->
+            <!-- Result: the message the sender transmits -->
             <div id="crypto-result" class="card" hidden>
               <h3 data-i18n="crypto.resultTitle"></h3>
               <p class="hint" data-i18n="crypto.resultHint"></p>
 
-              <label data-i18n="crypto.referenceLabel"></label>
+              <label data-i18n="crypto.transferLabel"></label>
+              <textarea id="crypto-transfer-out" class="mono" rows="4" readonly></textarea>
+              <div class="copy-row">
+                <button class="btn btn-ghost" id="crypto-copy-transfer" data-i18n="crypto.copyTransfer"></button>
+                <button class="btn btn-ghost" id="crypto-save-file" data-i18n="crypto.saveFile"></button>
+              </div>
+
+              <label for="crypto-ref-out" data-i18n="crypto.referenceLabel"></label>
               <div class="copy-row">
                 <input id="crypto-ref-out" class="mono" readonly />
                 <button class="btn btn-ghost" id="crypto-copy-ref" data-i18n="common.copy"></button>
               </div>
+              <p class="hint" data-i18n="crypto.referenceIsIdOnly"></p>
 
-              <label data-i18n="crypto.passphraseLabel"></label>
+              <label for="crypto-pass-out" data-i18n="crypto.passphraseLabel"></label>
               <div class="copy-row">
                 <input id="crypto-pass-out" class="mono" readonly />
                 <button class="btn btn-ghost" id="crypto-copy-pass" data-i18n="common.copy"></button>
@@ -213,7 +221,6 @@
               <p class="warn" data-i18n="crypto.passphraseWarning"></p>
 
               <div class="copy-row">
-                <button class="btn btn-ghost" id="crypto-save-block" data-i18n="crypto.saveBlock"></button>
                 <button class="btn btn-ghost" id="crypto-new" data-i18n="crypto.startOver"></button>
               </div>
             </div>
@@ -222,8 +229,9 @@
           <!-- Read -->
           <div id="crypto-read" class="crypto-pane">
             <div class="card">
-              <label for="read-reference" data-i18n="crypto.referenceLabel"></label>
-              <textarea id="read-reference" class="mono" rows="3" data-i18n-placeholder="crypto.referencePlaceholder"></textarea>
+              <label for="read-reference" data-i18n="crypto.transferLabel"></label>
+              <textarea id="read-reference" class="mono" rows="4" data-i18n-placeholder="crypto.transferPlaceholder"></textarea>
+              <p class="hint" data-i18n="crypto.transferHint"></p>
 
               <label for="read-passphrase" data-i18n="crypto.passphraseLabel"></label>
               <input id="read-passphrase" class="mono" type="text" autocomplete="off" spellcheck="false" />
