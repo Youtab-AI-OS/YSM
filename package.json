@@ -26,9 +26,9 @@
     "test:lib": "npm run build:crypto && node --test test/*.test.mjs",
     "test": "npm run test:tools && npm run test:lib && npm run test:unit && npm run test:sealed && npm run test:cross-machine && npm run test:security && npm run test:electron && npm run test:ui",
     "dist": "node scripts/build-installer.mjs",
-    "test:security": "npm run build && node scripts/test-adversarial.mjs && electron scripts/test-backdoor-audit.cjs",
+    "test:security": "npm run build && node scripts/test-adversarial.mjs && electron scripts/test-backdoor-audit.cjs && node scripts/audit-packaged-bundle.mjs release/win-unpacked/resources/app.asar",
     "test:sealed": "npm run build && node scripts/test-seal.mjs && node scripts/test-sealed-service.mjs",
-    "test:cross-machine": "npm run build && node scripts/test-cross-machine.mjs"
+    "test:cross-machine": "npm run build && node scripts/test-cross-machine.mjs && node scripts/test-e2e-two-way.mjs && node scripts/test-e2e-two-way.mjs --block-net"
   },
   "dependencies": {
     "@noble/ciphers": "^2.0.1",

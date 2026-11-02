@@ -37,12 +37,24 @@ function check(name, cond, detail = '') {
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
-/** Every source file we ship, excluding dependencies and build output. */
+/**
+ * Every file that ships, and nothing else.
+ *
+ * `scripts/` and `test/` are excluded deliberately: they are development tooling
+ * and never reach a customer's disk. Including them made this audit report its own
+ * pattern list as a finding — a false positive that hides real ones. What ships is
+ * `electron/`, `renderer/`, `src/` and the root config files, so that is what gets
+ * inspected.
+ */
 function sourceFiles() {
   const out = [];
+  const SKIP = [
+    'node_modules', 'build', 'release', 'dist', '.git', '.cache', 'docs', 'assets',
+    'scripts', 'test', '.automation', '.vm',
+  ];
   const walk = (dir) => {
     for (const entry of readdirSync(dir, { withFileTypes: true })) {
-      if (['node_modules', 'build', 'release', 'dist', '.git', '.cache', 'docs', 'assets'].includes(entry.name)) continue;
+      if (SKIP.includes(entry.name)) continue;
       const full = join(dir, entry.name);
       if (entry.isDirectory()) walk(full);
       else if (/\.(ts|mjs|cjs|js|html|json)$/.test(entry.name)) out.push(full);
